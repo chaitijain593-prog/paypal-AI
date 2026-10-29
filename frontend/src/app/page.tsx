@@ -1,8 +1,8 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Swords,
   ShieldCheck,
@@ -20,10 +20,19 @@ import {
 } from 'lucide-react';
 import ThreeSentinelScene from '@/components/ThreeSentinelScene';
 import ActivityFeed from '@/components/ActivityFeed';
+import OrbPortal from '@/components/OrbPortal';
 
 export default function HomePage() {
+  const [showPortal, setShowPortal] = useState(true);
+
   return (
-    <div className="space-y-12">
+    <>
+      <AnimatePresence>
+        {showPortal && <OrbPortal onEnter={() => setShowPortal(false)} />}
+      </AnimatePresence>
+
+      <div className="space-y-12">
+
       {/* 3D HERO SECTION */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center pt-2">
         {/* Left Column: Mission, Pitch & CTAs */}
@@ -72,6 +81,14 @@ export default function HomePage() {
               <TrendingUp className="w-4 h-4 text-[#FFC43A]" />
               Runway Guardian
             </Link>
+
+            <button
+              onClick={() => setShowPortal(true)}
+              className="flex items-center gap-2 px-5 py-3.5 rounded-2xl bg-cyan-950/40 hover:bg-cyan-900/60 border border-cyan-500/30 text-cyan-300 font-semibold text-sm transition-all shadow-md"
+            >
+              <Sparkles className="w-4 h-4 text-cyan-400 animate-pulse" />
+              3D Orb Portal
+            </button>
           </div>
 
           {/* Quick Metrics Bar */}
@@ -263,5 +280,8 @@ export default function HomePage() {
         </div>
       </div>
     </div>
-  );
+  </>
+);
 }
+
+
