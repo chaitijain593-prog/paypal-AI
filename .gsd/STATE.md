@@ -7,21 +7,20 @@ updated: 2026-10-29T18:52:00Z
 ## Current Position
 
 **Milestone:** v1.0 Production Hackathon Readiness
-**Phase:** 2 - Live AI Red-Team Arena (Gemini 2.5 Flash)
+**Phase:** 3 - PayPal Sandbox Integration (OAuth2 & Orders Sync)
 **Status:** ready
-**Plan:** Implement real Gemini LLM calls for adversarial red-teaming in arena_engine.py
+**Plan:** Implement paypal_client.py with OAuth2 client credentials and sandbox sync
 
 ## Last Action
 
-- Completed Phase 1: Built `frontend/src/lib/api.ts` and integrated DisputeArena, TransactionTable, CashFlow, and ProofCard to live FastAPI backend endpoints (:8000).
-- Validated TypeScript compilation (0 errors).
+- Completed Phase 2: Built `backend/app/services/arena_engine.py` connecting live Gemini 2.5 Flash / OpenAI REST API with adversarial firewall defense and prompt injection interception.
+- Verified test simulation execution (`ArenaRole.DEFENDER Rounds: 10`).
 
 ## Next Steps
 
-1. Implement `backend/app/services/arena_engine.py` with live Gemini 2.5 Flash API calls for dynamic attacker/defender rounds.
-2. Add PayPal Sandbox OAuth2 & Orders sync client in `backend/app/services/paypal_client.py`.
-3. Install AG Grid to qualify for the $5,000 Hackathon bounty.
-4. Implement binary Merkle Tree engine with verifiable cryptographic proof paths.
+1. Implement `backend/app/services/paypal_client.py` using `httpx` for real PayPal Sandbox authentication and orders sync.
+2. Install AG Grid React to qualify for the $5,000 Hackathon bounty.
+3. Implement binary Merkle Tree engine with verifiable cryptographic proof paths.
 
 ## Active Decisions
 

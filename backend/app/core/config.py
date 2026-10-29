@@ -20,6 +20,11 @@ class Settings:
         "PAYPAL_BASE_URL", "https://api-m.sandbox.paypal.com"
     )
 
+    # AI / LLM Engine
+    gemini_api_key: str = os.getenv("GEMINI_API_KEY", os.getenv("AI_API_KEY", ""))
+    ai_model: str = os.getenv("AI_MODEL", "gemini-2.5-flash")
+    openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
+
     # App
     app_env: str = os.getenv("APP_ENV", "development")
     app_debug: bool = os.getenv("APP_DEBUG", "true").lower() == "true"

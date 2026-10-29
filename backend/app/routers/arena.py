@@ -3,7 +3,8 @@
 from fastapi import APIRouter
 
 from app.models.schemas import ArenaRunRequest
-from app.services.mock_data import get_arena_simulations, run_arena_simulation
+from app.services.arena_engine import execute_arena_simulation
+from app.services.mock_data import get_arena_simulations
 
 router = APIRouter(prefix="/api/arena", tags=["Dispute Arena"])
 
@@ -17,6 +18,7 @@ def list_simulations():
 
 @router.post("/run")
 def run_simulation(body: ArenaRunRequest):
-    """Run a new attacker-vs-defender arena simulation."""
-    result = run_arena_simulation(body)
+    """Run a new attacker-vs-defender arena simulation using the Arena Engine."""
+    result = execute_arena_simulation(body)
     return result
+
