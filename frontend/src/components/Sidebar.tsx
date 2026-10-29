@@ -11,10 +11,8 @@ import {
   TrendingUp,
   X,
   Zap,
-  ShieldAlert,
-  Sliders,
-  ExternalLink,
   Lock,
+  Sparkles,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -23,7 +21,7 @@ interface SidebarProps {
 }
 
 const navItems = [
-  { href: '/', label: 'Command Center', icon: LayoutDashboard, badge: 'Live' },
+  { href: '/', label: '3D Sentinel Portal', icon: Sparkles, badge: '3D Hub' },
   { href: '/arena', label: 'Dispute Arena', icon: Swords, badge: 'Red Team' },
   { href: '/transactions', label: 'Transactions Ledger', icon: ArrowLeftRight },
   { href: '/proofs', label: 'Proof Vault', icon: ShieldCheck, badge: 'CE 3.0' },
@@ -35,12 +33,12 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarPr
 
   const content = (
     <div className="h-full flex flex-col justify-between p-4">
-      {/* Top Header & Brand */}
+      {/* Brand Header */}
       <div>
-        <div className="h-16 flex items-center justify-between px-3 mb-4 border-b border-white/[0.06]">
+        <div className="h-16 flex items-center justify-between px-3 mb-5 border-b border-slate-800/80">
           <Link href="/" className="flex items-center gap-3 group">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#0070BA] via-[#0090E0] to-[#FFC43A] p-0.5 shadow-lg shadow-blue-500/20 group-hover:scale-105 transition-transform">
-              <div className="w-full h-full bg-[#0A0D14] rounded-[10px] flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#0070BA] via-[#06B6D4] to-[#FFC43A] p-0.5 shadow-lg shadow-cyan-500/20 group-hover:scale-105 transition-transform">
+              <div className="w-full h-full bg-[#0B1120] rounded-[10px] flex items-center justify-center">
                 <Zap className="w-5 h-5 text-[#FFC43A]" />
               </div>
             </div>
@@ -49,7 +47,7 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarPr
                 <span className="font-extrabold text-base tracking-tight text-white">
                   PaySentinel
                 </span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#0070BA]/20 text-[#0090E0] font-bold border border-[#0070BA]/30">
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#0070BA]/25 text-[#0090E0] font-bold border border-[#0070BA]/40">
                   AI
                 </span>
               </div>
@@ -62,7 +60,7 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarPr
           {onCloseMobile && (
             <button
               onClick={onCloseMobile}
-              className="lg:hidden p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/[0.05]"
+              className="lg:hidden p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/[0.05]"
             >
               <X className="w-5 h-5" />
             </button>
@@ -70,7 +68,7 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarPr
         </div>
 
         {/* Section title */}
-        <div className="px-3 pb-2 text-[10px] uppercase font-bold tracking-wider text-gray-500">
+        <div className="px-3 pb-2.5 text-[10px] uppercase font-bold tracking-wider text-slate-400">
           Core Modules
         </div>
 
@@ -89,8 +87,8 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarPr
                   transition-all duration-200 group
                   ${
                     isActive
-                      ? 'bg-gradient-to-r from-[#0070BA]/25 to-[#0070BA]/5 text-white border border-[#0070BA]/40 shadow-[0_4px_20px_rgba(0,112,186,0.2)]'
-                      : 'text-gray-400 hover:text-gray-100 hover:bg-white/[0.04] border border-transparent'
+                      ? 'bg-gradient-to-r from-[#0070BA]/30 via-[#06B6D4]/15 to-transparent text-white border border-[#0070BA]/40 shadow-[0_4px_20px_rgba(0,112,186,0.25)]'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800/50 border border-transparent'
                   }
                 `}
               >
@@ -98,8 +96,8 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarPr
                   <div
                     className={`p-1.5 rounded-lg transition-colors ${
                       isActive
-                        ? 'bg-[#0070BA] text-white shadow-sm'
-                        : 'bg-white/[0.04] text-gray-400 group-hover:text-white group-hover:bg-white/[0.08]'
+                        ? 'bg-[#0070BA] text-white shadow-md shadow-blue-500/30'
+                        : 'bg-slate-800/80 text-slate-400 group-hover:text-white group-hover:bg-slate-700'
                     }`}
                   >
                     <Icon className="w-4 h-4" />
@@ -110,10 +108,10 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarPr
                 {item.badge && (
                   <span
                     className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
-                      item.badge === 'Red Team'
+                      item.badge === '3D Hub'
+                        ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 shadow-[0_0_10px_rgba(6,182,212,0.2)]'
+                        : item.badge === 'Red Team'
                         ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-                        : item.badge === 'Live'
-                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
                         : 'bg-[#FFC43A]/20 text-[#FFC43A] border border-[#FFC43A]/30'
                     }`}
                   >
@@ -122,7 +120,7 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarPr
                 )}
 
                 {isActive && (
-                  <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 rounded-r bg-[#0090E0]" />
+                  <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 rounded-r bg-[#06B6D4] shadow-[0_0_8px_#06B6D4]" />
                 )}
               </Link>
             );
@@ -132,29 +130,29 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarPr
 
       {/* Bottom Merchant Guard Card */}
       <div className="space-y-3">
-        <div className="p-3.5 rounded-2xl bg-gradient-to-br from-[#0070BA]/15 via-black/40 to-[#FFC43A]/10 border border-white/[0.08]">
+        <div className="p-3.5 rounded-2xl bg-gradient-to-br from-[#0B1528] via-[#0F1E3A] to-[#121E36] border border-cyan-500/20 shadow-lg">
           <div className="flex items-center gap-2 mb-2">
             <Lock className="w-4 h-4 text-emerald-400" />
             <span className="text-xs font-bold text-white">Firewall Active</span>
-            <span className="ml-auto w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="ml-auto w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_#10B981]" />
           </div>
-          <p className="text-[11px] text-gray-300 leading-snug">
+          <p className="text-[11px] text-slate-300 leading-snug">
             Untrusted Buyer inputs quarantined. 0 prompt injections permitted.
           </p>
-          <div className="mt-2.5 pt-2 border-t border-white/[0.08] flex items-center justify-between text-[10px] text-gray-400 font-medium">
+          <div className="mt-2.5 pt-2 border-t border-slate-700/60 flex items-center justify-between text-[10px] text-slate-400 font-medium">
             <span>Visa CE 3.0</span>
-            <span className="text-emerald-400 font-bold">100% Verified</span>
+            <span className="text-emerald-400 font-bold">100% Cryptographic</span>
           </div>
         </div>
 
         {/* User Mini Profile */}
-        <div className="px-3 py-2 rounded-xl bg-white/[0.03] border border-white/[0.06] flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-[#0070BA] flex items-center justify-center font-bold text-xs text-white">
+        <div className="px-3 py-2 rounded-xl bg-slate-900/60 border border-slate-800 flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-[#0070BA] to-[#06B6D4] flex items-center justify-center font-bold text-xs text-white shadow-sm">
             SS
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-xs font-bold text-white truncate">Shaurya Shah</p>
-            <p className="text-[10px] text-gray-400 truncate">team@paypal-ai</p>
+            <p className="text-[10px] text-slate-400 truncate">team@paypal-ai</p>
           </div>
         </div>
       </div>
@@ -163,8 +161,8 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarPr
 
   return (
     <>
-      {/* Desktop Sticky Sidebar - Always in flex document flow, NEVER overlaps main content */}
-      <aside className="hidden lg:flex w-72 flex-col shrink-0 sticky top-0 h-screen border-r border-white/[0.08] bg-[#0A0D14]/95 backdrop-blur-2xl z-40">
+      {/* Desktop Sticky Sidebar */}
+      <aside className="hidden lg:flex w-72 flex-col shrink-0 sticky top-0 h-screen border-r border-slate-800/80 bg-[#0B1120]/95 backdrop-blur-2xl z-40">
         {content}
       </aside>
 
@@ -172,10 +170,10 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarPr
       {mobileOpen && (
         <div className="lg:hidden fixed inset-0 z-50 flex">
           <div
-            className="fixed inset-0 bg-black/80 backdrop-blur-sm"
+            className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm"
             onClick={onCloseMobile}
           />
-          <aside className="relative w-72 max-w-[85vw] h-full bg-[#0A0D14] border-r border-white/[0.08] z-50 flex flex-col">
+          <aside className="relative w-72 max-w-[85vw] h-full bg-[#0B1120] border-r border-slate-800 z-50 flex flex-col">
             {content}
           </aside>
         </div>
