@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   TrendingUp,
@@ -19,6 +19,7 @@ import {
   FileCheck,
   RefreshCw,
 } from 'lucide-react';
+import { api, ApiCashFlowRunway } from '@/lib/api';
 
 interface DisputeItem {
   id: string;
@@ -44,11 +45,25 @@ export default function CashFlowPage() {
   const [disputesResolved, setDisputesResolved] = useState(true);
   const [invoicesCollected, setInvoicesCollected] = useState(false);
   const [recoveredDisputeIds, setRecoveredDisputeIds] = useState<string[]>([]);
+  const [liveRunway, setLiveRunway] = useState<ApiCashFlowRunway | null>(null);
 
-  // Baseline 41 days.
+  useEffect(() => {
+    let mounted = true;
+    api.getCashFlowRunway().then((res) => {
+      if (mounted && res) {
+        setLiveRunway(res);
+      }
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // Baseline 41 days or live runway calculation
+  const baseDays = liveRunway ? Math.round(liveRunway.runway_months * 30) : 41;
   const additionalDays =
     (disputesResolved ? 12 : 0) + (invoicesCollected ? 14 : 0);
-  const currentRunway = 41 + additionalDays;
+  const currentRunway = baseDays + additionalDays;
   const capitalRecovered =
     (disputesResolved ? 3840 : 0) + (invoicesCollected ? 8400 : 0);
 

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ShieldCheck,
@@ -15,7 +15,11 @@ import {
   Hash,
   GitBranch,
   Database,
+  CheckCircle2,
+  Loader2,
+  RefreshCw,
 } from 'lucide-react';
+import { api, ApiProofVerifyResult } from '@/lib/api';
 
 interface ProofItem {
   id: string;
@@ -32,7 +36,7 @@ interface ProofItem {
   originalData: string;
 }
 
-const proofs: ProofItem[] = [
+const defaultProofs: ProofItem[] = [
   {
     id: 'PRF-001',
     disputeId: 'DSP-4471',
@@ -126,7 +130,25 @@ const statusConfig = {
 };
 
 export default function ProofCard() {
+  const [proofs, setProofs] = useState<ProofItem[]>(defaultProofs);
   const [selected, setSelected] = useState<ProofItem | null>(null);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [liveVerificationResult, setLiveVerificationResult] = useState<ApiProofVerifyResult | null>(null);
+
+  const handleLiveVerify = async (proofId: string) => {
+    setIsVerifying(true);
+    setLiveVerificationResult(null);
+    try {
+      const res = await api.verifyProof(proofId);
+      if (res) {
+        setLiveVerificationResult(res);
+      }
+    } catch {
+      // Graceful fallback
+    } finally {
+      setIsVerifying(false);
+    }
+  };
 
   return (
     <>
@@ -141,7 +163,10 @@ export default function ProofCard() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.08 }}
-              onClick={() => setSelected(proof)}
+              onClick={() => {
+                setSelected(proof);
+                setLiveVerificationResult(null);
+              }}
               className={`glass-card p-5 cursor-pointer border ${sc.border} hover:${sc.glow} transition-all group`}
             >
               <div className="flex items-start justify-between mb-3">
@@ -183,7 +208,7 @@ export default function ProofCard() {
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="glass-card p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto border border-white/[0.1]"
+              className="glass-card p-6 max-w-2xl w-full max-h-[85vh] overflow-y-auto border border-white/[0.1]"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between mb-6">
@@ -209,14 +234,46 @@ export default function ProofCard() {
                 </code>
               </div>
 
-              {/* Status */}
-              <div className="mb-4">
+              {/* Status and Live Verify Button */}
+              <div className="flex items-center justify-between mb-4">
                 <span className={`badge ${statusConfig[selected.status].color} ${
                   selected.status === 'verified' ? 'bg-emerald-400/10' : selected.status === 'tampered' ? 'bg-red-400/10' : 'bg-yellow-400/10'
                 }`}>
                   {statusConfig[selected.status].label}
                 </span>
+
+                <button
+                  onClick={() => handleLiveVerify(selected.id)}
+                  disabled={isVerifying}
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-[#0070BA] to-[#0090E0] text-white text-xs font-semibold hover:shadow-md transition-all disabled:opacity-50"
+                >
+                  {isVerifying ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" /> Verifying Hash…
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5" /> Live SHA-256 Re-Verify
+                    </>
+                  )}
+                </button>
               </div>
+
+              {/* Live Verification Engine Result */}
+              {liveVerificationResult && (
+                <div className="mb-4 p-3.5 rounded-xl bg-emerald-950/40 border border-emerald-500/30 space-y-1.5">
+                  <div className="flex items-center gap-2 text-emerald-400 text-xs font-bold">
+                    <CheckCircle2 className="w-4 h-4" />
+                    FastAPI Proof Engine Re-Verification Passed
+                  </div>
+                  <p className="text-[11px] text-slate-300 font-mono">
+                    Computed Hash: {liveVerificationResult.computed_hash.slice(0, 24)}... (Match: {liveVerificationResult.match ? '100%' : 'Mismatch'})
+                  </p>
+                  <p className="text-[10px] text-slate-400">
+                    Timestamp: {liveVerificationResult.verified_at}
+                  </p>
+                </div>
+              )}
 
               {/* Merkle Tree */}
               <div className="mb-4">

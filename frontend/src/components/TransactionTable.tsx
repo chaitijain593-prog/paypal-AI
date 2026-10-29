@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search,
@@ -9,7 +9,9 @@ import {
   ChevronUp,
   ExternalLink,
   Copy,
+  RefreshCw,
 } from 'lucide-react';
+import { api, ApiTransaction } from '@/lib/api';
 
 interface Transaction {
   id: string;
@@ -23,7 +25,7 @@ interface Transaction {
   paymentMethod: string;
 }
 
-const transactions: Transaction[] = [
+const defaultTransactions: Transaction[] = [
   { id: 'PP-7829-MNQR', date: '2026-10-28', buyer: 'Carlos Martinez', buyerEmail: 'carlos.m@email.com', amount: 1249.99, status: 'Disputed', type: 'Product Sale', description: 'MacBook Pro M4 - Space Black', paymentMethod: 'PayPal Balance' },
   { id: 'PP-7830-ABCD', date: '2026-10-28', buyer: 'Sarah Johnson', buyerEmail: 'sarah.j@email.com', amount: 89.50, status: 'Completed', type: 'Service', description: 'Monthly SaaS Subscription - Enterprise', paymentMethod: 'Credit Card' },
   { id: 'PP-7831-EFGH', date: '2026-10-27', buyer: 'Acme Corporation', buyerEmail: 'billing@acme.com', amount: 2450.00, status: 'Completed', type: 'Invoice', description: 'Consulting Services - October 2026', paymentMethod: 'Bank Transfer' },
@@ -45,14 +47,49 @@ const statusConfig = {
   Refunded: { color: 'text-purple-400', bg: 'bg-purple-400/10', border: 'border-purple-400/20' },
 };
 
+function normalizeStatus(raw: string): 'Completed' | 'Pending' | 'Disputed' | 'Refunded' {
+  const upper = raw.toUpperCase();
+  if (upper === 'COMPLETED') return 'Completed';
+  if (upper === 'PENDING') return 'Pending';
+  if (upper === 'DISPUTED') return 'Disputed';
+  if (upper === 'REFUNDED') return 'Refunded';
+  return 'Completed';
+}
+
 export default function TransactionTable() {
+  const [data, setData] = useState<Transaction[]>(defaultTransactions);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('All');
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [sortField, setSortField] = useState<'date' | 'amount'>('date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [backendSynced, setBackendSynced] = useState(false);
 
-  const filtered = transactions
+  useEffect(() => {
+    let mounted = true;
+    api.getTransactions().then((res) => {
+      if (mounted && res && res.transactions && res.transactions.length > 0) {
+        setBackendSynced(true);
+        const mapped: Transaction[] = res.transactions.map((t: ApiTransaction) => ({
+          id: t.id,
+          date: t.created_at ? t.created_at.slice(0, 10) : '2026-10-28',
+          buyer: t.buyer?.name || 'Buyer',
+          buyerEmail: t.buyer?.email || 'buyer@example.com',
+          amount: t.amount,
+          status: normalizeStatus(t.status),
+          type: t.type || 'Product Sale',
+          description: t.description || 'PayPal Payment',
+          paymentMethod: t.payment_method || 'PayPal',
+        }));
+        setData(mapped);
+      }
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const filtered = data
     .filter((t) => {
       const matchesSearch =
         t.id.toLowerCase().includes(search.toLowerCase()) ||
@@ -79,6 +116,22 @@ export default function TransactionTable() {
 
   return (
     <div className="space-y-4">
+      {/* Backend Status indicator */}
+      <div className="flex items-center justify-between pb-1">
+        <div className="flex items-center gap-2">
+          <span
+            className={`w-2 h-2 rounded-full ${
+              backendSynced ? 'bg-emerald-400 animate-pulse' : 'bg-cyan-400'
+            }`}
+          />
+          <span className="text-xs text-slate-400 font-medium">
+            {backendSynced
+              ? 'FastAPI Live Ledger Synced (:8000/api/transactions)'
+              : 'Standby / Live Ledger Ready'}
+          </span>
+        </div>
+      </div>
+
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
@@ -141,7 +194,7 @@ export default function TransactionTable() {
             </thead>
             <tbody>
               {filtered.map((tx) => {
-                const sc = statusConfig[tx.status];
+                const sc = statusConfig[tx.status] || statusConfig.Completed;
                 const isExpanded = expandedRow === tx.id;
                 return (
                   <React.Fragment key={tx.id}>
@@ -201,10 +254,22 @@ export default function TransactionTable() {
                                     <p className="text-sm text-white">{tx.paymentMethod}</p>
                                   </div>
                                   <div className="flex items-center gap-2">
-                                    <button className="flex items-center gap-1 text-xs text-[#0070BA] hover:text-[#0090E0] transition-colors">
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        window.open('https://sandbox.paypal.com', '_blank');
+                                      }}
+                                      className="flex items-center gap-1 text-xs text-[#0070BA] hover:text-[#0090E0] transition-colors"
+                                    >
                                       <ExternalLink className="w-3 h-3" /> View in PayPal
                                     </button>
-                                    <button className="flex items-center gap-1 text-xs text-gray-500 hover:text-white transition-colors">
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        navigator.clipboard.writeText(tx.id);
+                                      }}
+                                      className="flex items-center gap-1 text-xs text-gray-500 hover:text-white transition-colors"
+                                    >
                                       <Copy className="w-3 h-3" /> Copy ID
                                     </button>
                                   </div>
