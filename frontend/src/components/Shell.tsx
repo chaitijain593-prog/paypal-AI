@@ -3,21 +3,17 @@
 import React, { useState } from 'react';
 import Sidebar from '@/components/Sidebar';
 import TopNav from '@/components/TopNav';
+import SilkBackground from '@/components/SilkBackground';
 
 export default function Shell({ children }: { children: React.ReactNode }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
     <div className="flex min-h-screen bg-[#080D1A] text-[#F8FAFC] relative overflow-x-hidden selection:bg-[#0070BA] selection:text-white">
-      {/* Dynamic Cosmic Gradient Orbs */}
-      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
-        {/* Top central intense sapphire glow */}
-        <div className="absolute -top-[150px] left-1/2 -translate-x-1/2 w-[1100px] h-[600px] bg-gradient-to-b from-[#0070BA]/25 via-[#06B6D4]/15 to-transparent blur-[140px] rounded-full pointer-events-none" />
-        {/* Bottom right gold/amber financial liquidity accent */}
-        <div className="absolute -bottom-[100px] -right-[100px] w-[600px] h-[600px] bg-[#FFC43A]/10 blur-[130px] rounded-full pointer-events-none" />
-        {/* Mid left royal indigo defense aura */}
-        <div className="absolute top-1/3 -left-[150px] w-[500px] h-[500px] bg-[#6366F1]/12 blur-[130px] rounded-full pointer-events-none" />
-      </div>
+      {/* Animated WebGL Silk Shader Background */}
+      <SilkBackground />
+      {/* Semi-transparent overlay to ensure content readability */}
+      <div className="fixed inset-0 bg-[#080D1A]/40 pointer-events-none z-[1]" />
 
       {/* Sidebar (Desktop sticky in flex flow + Mobile drawer) */}
       <Sidebar
