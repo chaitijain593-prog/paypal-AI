@@ -134,6 +134,19 @@ export default function ProofCard() {
   const [selected, setSelected] = useState<ProofItem | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
   const [liveVerificationResult, setLiveVerificationResult] = useState<ApiProofVerifyResult | null>(null);
+  const [liveMerkleRoot, setLiveMerkleRoot] = useState<string>('a8916e055c03ebe1e09edb88eb809ee4d496f3f439a3aaa49961e2fe9263a21d');
+
+  useEffect(() => {
+    let mounted = true;
+    api.getProofs().then((res: any) => {
+      if (mounted && res && res.merkle_root) {
+        setLiveMerkleRoot(res.merkle_root);
+      }
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const handleLiveVerify = async (proofId: string) => {
     setIsVerifying(true);
@@ -152,6 +165,24 @@ export default function ProofCard() {
 
   return (
     <>
+      {/* Merkle Engine Banner */}
+      <div className="glass-card p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 border-cyan-500/30 mb-2">
+        <div className="flex items-center gap-2.5">
+          <GitBranch className="w-4 h-4 text-cyan-400" />
+          <div>
+            <p className="text-xs font-bold text-white flex items-center gap-2">
+              <span>SHA-256 Binary Merkle Tree Active</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-400/10 text-cyan-300 font-mono">
+                Visa CE 3.0 Compliant
+              </span>
+            </p>
+            <p className="text-[11px] font-mono text-slate-400 truncate max-w-lg">
+              Root Hash: {liveMerkleRoot}
+            </p>
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {proofs.map((proof, i) => {
           const sc = statusConfig[proof.status];

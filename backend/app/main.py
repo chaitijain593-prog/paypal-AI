@@ -12,7 +12,16 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import get_settings
-from app.routers import arena, cashflow, dashboard, disputes, proofs, transactions, webhooks
+from app.routers import (
+    arena,
+    cashflow,
+    dashboard,
+    disputes,
+    paypal,
+    proofs,
+    transactions,
+    webhooks,
+)
 
 settings = get_settings()
 
@@ -41,6 +50,8 @@ app.include_router(arena.router)
 app.include_router(proofs.router)
 app.include_router(cashflow.router)
 app.include_router(webhooks.router)
+app.include_router(paypal.router)
+
 
 
 # ── Health Check ───────────────────────────────────────────────────────────

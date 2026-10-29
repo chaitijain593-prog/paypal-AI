@@ -190,4 +190,22 @@ export const api = {
     request<{ count: number; proofs: ApiProofRecord[] }>('/api/proofs'),
   verifyProof: (proofId: string) =>
     request<ApiProofVerifyResult>(`/api/proofs/${proofId}/verify`),
+
+  // PayPal Sandbox
+  getPayPalStatus: () =>
+    request<{
+      connected: boolean;
+      mode: string;
+      message: string;
+      base_url: string;
+      timestamp: string;
+    }>('/api/paypal/status'),
+  syncPayPal: () =>
+    request<{
+      status: string;
+      synced_count: number;
+      sandbox_status: any;
+      transactions: ApiTransaction[];
+    }>('/api/paypal/sync', { method: 'POST' }),
 };
+
