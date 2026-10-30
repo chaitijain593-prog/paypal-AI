@@ -22,11 +22,12 @@ interface SidebarProps {
 }
 
 const navItems = [
-  { href: '/', label: '3D E-Wallet Studio', icon: Smartphone, badge: 'Hero 3D' },
+  { href: '/dashboard', label: 'Command Center', icon: LayoutDashboard, badge: 'Live' },
   { href: '/arena', label: 'Dispute Arena', icon: Swords, badge: 'Red Team' },
   { href: '/transactions', label: 'Transactions Ledger', icon: ArrowLeftRight },
   { href: '/proofs', label: 'Proof Vault', icon: ShieldCheck, badge: 'CE 3.0' },
   { href: '/cashflow', label: 'Runway Guardian', icon: TrendingUp },
+  { href: '/', label: '3D Landing Showcase', icon: Smartphone, badge: '3D' },
 ];
 
 export default function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {

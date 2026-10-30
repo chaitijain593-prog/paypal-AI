@@ -18,7 +18,7 @@ interface TopNavProps {
 }
 
 const pageTitles: Record<string, { title: string; subtitle: string }> = {
-  '/': { title: '3D E-Wallet Studio', subtitle: 'Isometric 3D mobile devices, autonomous wallet & dispute defense showcase' },
+  '/dashboard': { title: 'Merchant Command Center', subtitle: 'Dispute defense, agentic commerce & risk monitoring' },
   '/arena': { title: 'Dispute Arena', subtitle: 'Adversarial AI red-team simulations & prompt injection firewall' },
   '/transactions': { title: 'Transactions Ledger', subtitle: 'PayPal Sandbox orders, dispute drill-downs & logs' },
   '/proofs': { title: 'Proof Vault', subtitle: 'SHA-256 Merkle proof chain & Visa CE 3.0 evidence ledger' },
