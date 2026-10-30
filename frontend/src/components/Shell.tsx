@@ -13,7 +13,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   // Standalone Full-Width Starting Landing Page
   if (pathname === '/') {
     return (
-      <div className="min-h-screen bg-[#0B0F17] text-[#F8FAFC] relative overflow-x-hidden selection:bg-[#0070BA] selection:text-white">
+      <div className="min-h-screen bg-[#0B0F17] text-[#F8FAFC] relative overflow-x-clip selection:bg-[#0070BA] selection:text-white">
         {/* Soft, calm 3D WebGL silk waves in deep midnight navy & PayPal blues */}
         <SilkBackground opacity={0.75} />
 
