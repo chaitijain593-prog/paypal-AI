@@ -4,15 +4,28 @@ import React, { useState } from 'react';
 import { usePathname } from 'next/navigation';
 import Sidebar from '@/components/Sidebar';
 import TopNav from '@/components/TopNav';
+import SilkBackground from '@/components/SilkBackground';
 
 export default function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Standalone Full-Width Starting Landing Page (NO sidebar, clean layout)
+  // Standalone Full-Width Starting Landing Page
   if (pathname === '/') {
     return (
       <div className="min-h-screen bg-[#0B0F17] text-[#F8FAFC] relative overflow-x-hidden selection:bg-[#0070BA] selection:text-white">
+        {/* Soft, calm 3D WebGL silk waves in deep midnight navy & PayPal blues */}
+        <SilkBackground opacity={0.75} />
+
+        {/* Soft radial mask: fully reveals the 3D silk wave behind the phone while softly blending to #0B0F17 around text */}
+        <div
+          className="fixed inset-0 pointer-events-none z-[1]"
+          style={{
+            background:
+              'radial-gradient(1200px 750px at 70% 38%, transparent 0%, rgba(11, 15, 23, 0.4) 50%, #0B0F17 95%)',
+          }}
+        />
+
         <div className="relative z-10 w-full">{children}</div>
       </div>
     );

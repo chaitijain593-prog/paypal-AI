@@ -134,11 +134,11 @@ export default function StartingPage() {
   const currentPreset = presets[viewMode];
 
   return (
-    <div className="min-h-screen bg-[#0B0F17] text-[#F8FAFC] flex flex-col justify-between selection:bg-[#0070BA] selection:text-white">
+    <div className="min-h-screen bg-transparent text-[#F8FAFC] flex flex-col justify-between selection:bg-[#0070BA] selection:text-white">
       {/* ========================================================================= */}
       {/* 1. STANDALONE TOP NAVBAR (Full-width, clean padding)                       */}
       {/* ========================================================================= */}
-      <header className="w-full border-b border-white/[0.06] bg-[#0B0F17] sticky top-0 z-50">
+      <header className="w-full border-b border-white/[0.06] bg-[#0B0F17]/70 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 md:px-12 py-4 flex items-center justify-between">
           {/* Brand Logo */}
           <Link href="/" className="flex items-center gap-3 group">
@@ -779,7 +779,7 @@ export default function StartingPage() {
       {/* ========================================================================= */}
       {/* 4. CLEAN MINIMAL LANDING FOOTER                                           */}
       {/* ========================================================================= */}
-      <footer className="w-full border-t border-white/[0.06] bg-[#0B0F17]">
+      <footer className="w-full border-t border-white/[0.06] bg-[#0B0F17]/70 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-6 md:px-12 py-5 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-400">
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-400" />

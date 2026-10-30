@@ -72,14 +72,6 @@ float grainHash(vec2 p) {
   return fract((p3.x + p3.y) * p3.z);
 }
 
-vec2 hash22(vec2 p) {
-#ifndef GL_FRAGMENT_PRECISION_HIGH
-  p = mod(p, 31.0);
-#endif
-  float n = sin(dot(p, vec2(41.0, 289.0)));
-  return fract(vec2(15731.743, 7892.321) * n);
-}
-
 float noise(vec2 p) {
   vec2 i = floor(p);
   vec2 f = fract(p);
@@ -140,124 +132,88 @@ vec3 mixColour(vec3 a, vec3 b, float t) {
   return mix(a, b, t);
 }
 
-vec3 palette(float x) {
-  float n = max(u_colorCount - 1.0, 1.0);
-  float f = clamp(x, 0.0, 1.0) * n;
-  vec3 col = u_colors[0];
-  for (int i = 0; i < 7; i++) {
-    if (float(i) < n)
-      col = mixColour(col, u_colors[i + 1],
-        smoothstep(0.0, 1.0, clamp(f - float(i), 0.0, 1.0)));
-  }
-  return col;
+vec3 palette(float t) {
+  t = clamp(t, 0.0, 1.0);
+  float s = t * 3.0;
+  int i = int(floor(s));
+  float f = fract(s);
+  if (i == 0) return mixColour(u_colors[0], u_colors[1], f);
+  if (i == 1) return mixColour(u_colors[1], u_colors[2], f);
+  if (i == 2) return mixColour(u_colors[2], u_colors[3], f);
+  return u_colors[3];
 }
 
 vec3 hueRotate(vec3 col, float a) {
-  const mat3 toYIQ = mat3(0.299, 0.596, 0.211,
-                          0.587, -0.274, -0.523,
-                          0.114, -0.322, 0.312);
-  const mat3 toRGB = mat3(1.0, 1.0, 1.0,
-                          0.956, -0.272, -1.106,
-                          0.621, -0.647, 1.703);
-  vec3 yiq = toYIQ * col;
   float ca = cos(a), sa = sin(a);
-  yiq = vec3(yiq.x, yiq.y * ca - yiq.z * sa, yiq.y * sa + yiq.z * ca);
-  return toRGB * yiq;
+  mat3 m = mat3(
+    0.213 + ca * 0.787 - sa * 0.213,
+    0.715 - ca * 0.715 - sa * 0.715,
+    0.072 - ca * 0.072 + sa * 0.928,
+    0.213 - ca * 0.213 + sa * 0.143,
+    0.715 + ca * 0.285 + sa * 0.140,
+    0.072 - ca * 0.072 - sa * 0.283,
+    0.213 - ca * 0.213 - sa * 0.787,
+    0.715 - ca * 0.715 + sa * 0.715,
+    0.072 + ca * 0.928 + sa * 0.072
+  );
+  return clamp(m * col, 0.0, 1.0);
 }
 
 vec3 shade(vec2 uv, vec2 p, float t) {
-  vec2 q = p * 1.6;
-  float amp = 0.25 + u_intensity * 0.85;
-  for (float i = 1.0; i < 5.0; i += 1.0) {
-    q.x += amp / i * cos(i * 2.4 * q.y + t * 0.8 + u_seed);
-    q.y += amp / i * cos(i * 1.7 * q.x + t * 0.6);
-  }
-  return palette(0.5 + 0.5 * sin(q.x + q.y));
+  float w = sin(p.x * 2.4 + t * 0.6) * cos(p.y * 2.4 - t * 0.5);
+  float w2 = sin(p.y * 3.2 - t * 0.4) * cos(p.x * 3.2 + t * 0.7);
+  float field = (w + w2) * 0.5;
+  field += fbm(p * 1.5 + vec2(t * 0.15, -t * 0.12)) * u_intensity;
+  float c = (field + 1.0) * 0.5;
+  return palette(c);
 }
 
 void main() {
-  vec2 uv = gl_FragCoord.xy / u_resolution.xy;
-  vec2 screenUv = uv;
-  vec2 p = (gl_FragCoord.xy - 0.5 * u_resolution.xy)
-    / min(u_resolution.x, u_resolution.y);
-  float cursorMask = 0.0;
+  vec2 res = max(u_resolution.xy, vec2(1.0, 1.0));
+  vec2 screenUv = gl_FragCoord.xy / res;
+  vec2 p = (gl_FragCoord.xy - 0.5 * res) / max(min(res.x, res.y), 1.0);
+  vec2 uv;
 
   if (u_cursorPresence > 0.001) {
-    vec2 cursor = (0.5 * u_mouse * u_resolution.xy)
-      / min(u_resolution.x, u_resolution.y);
-    vec2 cursorDelta = p - cursor;
-    if (u_cursorEffect < 0.5) {
-      p += cursor * u_cursorPresence * u_cursorStrength * 0.55;
-    } else {
-      float cursorDistance = length(cursorDelta);
-      vec2 cursorDirection = cursorDelta / max(cursorDistance, 0.0001);
-      cursorMask = u_cursorPresence
-        * (1.0 - smoothstep(0.0, u_cursorRadius, cursorDistance));
-      if (u_cursorEffect < 1.5) {
-        p -= cursorDirection * cursorMask * u_cursorStrength * 0.24;
-      } else if (u_cursorEffect < 2.5) {
-        float cursorAngle = cursorMask * u_cursorStrength * 2.2;
-        float cc = cos(cursorAngle), cs = sin(cursorAngle);
-        p = cursor + mat2(cc, -cs, cs, cc) * cursorDelta;
-      } else if (u_cursorEffect < 3.5) {
-        float ripple = sin(
-          cursorDistance / max(u_cursorRadius, 0.001) * 18.0 - u_time * 5.0);
-        p -= cursorDirection * ripple * cursorMask * u_cursorStrength * 0.07;
-      }
+    vec2 cursor = (u_mouse - 0.5 * u_resolution.xy) / min(u_resolution.x, u_resolution.y);
+    float cursorDistance = length(p - cursor);
+    float cursorRadius = max(u_cursorRadius, 0.001);
+    float cursorMask = 1.0 - smoothstep(0.0, cursorRadius, cursorDistance);
+    cursorMask *= u_cursorPresence;
+
+    if (cursorMask > 0.0001) {
+      vec2 cursorDelta = p - cursor;
+      vec2 cursorDirection = cursorDistance > 0.0001 ? normalize(cursorDelta) : vec2(0.0);
+      float cursorAngle = u_cursorStrength * cursorMask * 1.5;
+      float cc = cos(cursorAngle), cs = sin(cursorAngle);
+      p = cursor + mat2(cc, -cs, cs, cc) * cursorDelta;
     }
   }
 
   uv = p * min(u_resolution.x, u_resolution.y) / u_resolution.xy + 0.5;
   p *= u_scale;
-  if (abs(u_rotate) > 0.0001) {
-    float cr = cos(u_rotate), sr = sin(u_rotate);
-    p = mat2(cr, -sr, sr, cr) * p;
-  }
   p += u_offset;
-  if (u_drift > 0.0001)
-    p += u_drift * vec2(sin(u_time * 0.31), cos(u_time * 0.23));
-  if (u_warp > 0.0) {
-    p += u_warp * (vec2(
-      fbm(p * u_detail + u_seed),
-      fbm(p * u_detail + vec2(5.2, 1.3))) - 0.5);
-  }
-  vec3 col;
-  if (u_blur > 0.0) {
-    float e = u_blur;
-    float pe = e * u_scale;
-    vec2 uvE = vec2(e) * min(u_resolution.x, u_resolution.y) / u_resolution.xy;
-    col  = shade(uv, p, u_time) * 0.36;
-    col += shade(uv + vec2(uvE.x, 0.0), p + vec2(pe, 0.0), u_time) * 0.16;
-    col += shade(uv - vec2(uvE.x, 0.0), p - vec2(pe, 0.0), u_time) * 0.16;
-    col += shade(uv + vec2(0.0, uvE.y), p + vec2(0.0, pe), u_time) * 0.16;
-    col += shade(uv - vec2(0.0, uvE.y), p - vec2(0.0, pe), u_time) * 0.16;
-  } else {
-    col = shade(uv, p, u_time);
-  }
+  p += u_drift * vec2(sin(u_time * 0.2), cos(u_time * 0.15));
+
+  vec3 col = shade(uv, p, u_time);
   if (abs(u_contrast - 1.0) > 0.0001)
     col = (col - 0.5) * u_contrast + 0.5;
   if (abs(u_saturation - 1.0) > 0.0001) {
     float luma = dot(col, vec3(0.299, 0.587, 0.114));
     col = mix(vec3(luma), col, u_saturation);
   }
-  if (abs(u_hue) > 0.0001)
-    col = hueRotate(col, u_hue);
   if (abs(u_brightness) > 0.0001)
     col += u_brightness;
-  if (u_vignette > 0.0001) {
-    float vd = length(screenUv - 0.5) * 1.41421356;
-    col *= 1.0 - u_vignette * smoothstep(0.35, 1.0, vd);
-  }
-  if (u_cursorPresence > 0.001 && u_cursorEffect > 3.5)
-    col += (vec3(0.18) + col * 0.12) * cursorMask * u_cursorStrength;
+
+  float vd = length(screenUv - 0.5) * 1.41421356;
+  col *= 1.0 - u_vignette * smoothstep(0.35, 1.0, vd);
+
   if (u_grain > 0.0001)
-    col += (grainHash(
-      gl_FragCoord.xy + vec2(u_seed * 17.0, u_seed * 31.0)) - 0.5) * u_grain;
+    col += (grainHash(gl_FragCoord.xy + vec2(u_seed * 17.0, u_seed * 31.0)) - 0.5) * u_grain;
+
   gl_FragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
 }
 `;
-
-// ── Helpers ───────────────────────────────────────────────────────────────
 
 function createShader(gl: WebGLRenderingContext, type: number, src: string) {
   const s = gl.createShader(type)!;
@@ -284,13 +240,14 @@ function createProgram(gl: WebGLRenderingContext, vs: WebGLShader, fs: WebGLShad
   return p;
 }
 
-// ── Component ─────────────────────────────────────────────────────────────
+interface SilkBackgroundProps {
+  opacity?: number;
+}
 
-export default function SilkBackground() {
+export default function SilkBackground({ opacity = 0.45 }: SilkBackgroundProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [mounted, setMounted] = useState(false);
 
-  // Client-only mount to prevent SSR hydration mismatch
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -308,12 +265,8 @@ export default function SilkBackground() {
       premultipliedAlpha: false,
       preserveDrawingBuffer: false,
     });
-    if (!gl) {
-      console.warn('WebGL not supported — Silk background disabled');
-      return;
-    }
+    if (!gl) return;
 
-    // Compile & link
     const vs = createShader(gl, gl.VERTEX_SHADER, VERT);
     const fs = createShader(gl, gl.FRAGMENT_SHADER, FRAG);
     if (!vs || !fs) return;
@@ -321,69 +274,64 @@ export default function SilkBackground() {
     if (!prog) return;
     gl.useProgram(prog);
 
-    // Fullscreen triangle (covers clip-space with a single oversized tri)
     const posAttr = gl.getAttribLocation(prog, 'a_position');
     const buf = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-    // prettier-ignore
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
-      -1, -1,
-       3, -1,
-      -1,  3,
-    ]), gl.STATIC_DRAW);
+    gl.bufferData(
+      gl.ARRAY_BUFFER,
+      new Float32Array([-1, -1, 3, -1, -1, 3]),
+      gl.STATIC_DRAW
+    );
     gl.enableVertexAttribArray(posAttr);
     gl.vertexAttribPointer(posAttr, 2, gl.FLOAT, false, 0, 0);
 
-    // ── Uniform locations ─────────────────────────────────────────────────
     const loc = {
-      colors:    gl.getUniformLocation(prog, 'u_colors'),
-      scene:     gl.getUniformLocation(prog, 'u_scene'),
-      shape:     gl.getUniformLocation(prog, 'u_shape'),
-      surface:   gl.getUniformLocation(prog, 'u_surface'),
-      finish:    gl.getUniformLocation(prog, 'u_finish'),
+      colors: gl.getUniformLocation(prog, 'u_colors'),
+      scene: gl.getUniformLocation(prog, 'u_scene'),
+      shape: gl.getUniformLocation(prog, 'u_shape'),
+      surface: gl.getUniformLocation(prog, 'u_surface'),
+      finish: gl.getUniformLocation(prog, 'u_finish'),
       transform: gl.getUniformLocation(prog, 'u_transform'),
-      space:     gl.getUniformLocation(prog, 'u_space'),
-      cursor:    gl.getUniformLocation(prog, 'u_cursor'),
+      space: gl.getUniformLocation(prog, 'u_space'),
+      cursor: gl.getUniformLocation(prog, 'u_cursor'),
     };
 
-    // ── Fixed uniform values from the recipe ──────────────────────────────
-    // Colours: #0B1026, #3D46E8, #B18CFF, #FFD6E7
+    // ── CALM, VIBRANT YET SWEET PAYPAL PALETTE ─
+    // Midnight base, rich navy, iconic PayPal Royal Blue, and subtle cyan highlight
     const colors = new Float32Array([
-      0.043, 0.063, 0.149,   // #0B1026
-      0.000, 0.439, 0.729,   // #0070BA PayPal Royal Blue
-      0.063, 0.725, 0.506,   // #10B981 Emerald Green
-      0.463, 0.886, 0.263,   // #76E243 Neon Lime Accent
-      0, 0, 0,               // unused slots 4–7
+      0.043, 0.065, 0.115, // #0B111D Deep Night
+      0.055, 0.145, 0.285, // #0E2549 Rich Midnight Navy
+      0.000, 0.439, 0.729, // #0070BA PayPal Royal Blue
+      0.000, 0.612, 0.871, // #009CDE PayPal Light Blue / Cyan
+      0, 0, 0,
       0, 0, 0,
       0, 0, 0,
       0, 0, 0,
     ]);
     gl.uniform3fv(loc.colors, colors);
 
-    // u_shape  = vec4(scale 1.26, intensity 0.28, paramA 0.50, warp 0.00)
-    gl.uniform4f(loc.shape, 1.26, 0.28, 0.50, 0.00);
-    // u_surface = vec4(detail 2.40, contrast 1.11, brightness 0.00, saturation 1.00)
-    gl.uniform4f(loc.surface, 2.40, 1.11, 0.00, 1.00);
-    // u_finish  = vec4(hue 0.00, vignette 0.00, blur 0.000, grain 0.05)
-    gl.uniform4f(loc.finish, 0.00, 0.00, 0.000, 0.05);
-    // u_transform = vec4(seed 1581.0, rotate 0.00, drift 0.00, oklab 0.0)
-    gl.uniform4f(loc.transform, 1581.0, 0.00, 0.00, 0.0);
+    // Flowing silk curves with visible depth
+    gl.uniform4f(loc.shape, 1.2, 0.38, 0.48, 0.0);
+    gl.uniform4f(loc.surface, 2.2, 1.15, 0.02, 1.0);
+    gl.uniform4f(loc.finish, 0.0, 0.2, 0.0, 0.03);
+    gl.uniform4f(loc.transform, 1200.0, 0.0, 0.02, 0.0);
 
-    // ── Per-frame state ───────────────────────────────────────────────────
     let width = 0;
     let height = 0;
-    let mouseX = 0;   // normalised -1..1
+    let mouseX = 0;
     let mouseY = 0;
-    let cursorPresence = 0;  // smoothly lerped to 1 when pointer is on canvas
+    let cursorPresence = 0;
+    let smoothPresence = 0;
     let rafId = 0;
     let running = true;
 
-    const dpr = Math.min(devicePixelRatio || 1, 2);
+    const dpr = Math.min(devicePixelRatio || 1, 1.5);
 
     function resize() {
-      const rect = canvas!.getBoundingClientRect();
-      width = (rect.width * dpr) | 0;
-      height = (rect.height * dpr) | 0;
+      const w = canvas!.clientWidth || window.innerWidth || 1280;
+      const h = canvas!.clientHeight || window.innerHeight || 800;
+      width = (w * dpr) | 0;
+      height = (h * dpr) | 0;
       if (canvas!.width !== width || canvas!.height !== height) {
         canvas!.width = width;
         canvas!.height = height;
@@ -391,10 +339,8 @@ export default function SilkBackground() {
       }
     }
 
-    // Track pointer
     function onPointerMove(e: PointerEvent) {
       const rect = canvas!.getBoundingClientRect();
-      // Map to -1..1 with Y flipped for GL
       mouseX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
       mouseY = -(((e.clientY - rect.top) / rect.height) * 2 - 1);
       cursorPresence = 1;
@@ -408,7 +354,6 @@ export default function SilkBackground() {
     window.addEventListener('resize', resize);
     resize();
 
-    // Visibility API — pause RAF when tab is hidden
     function onVisibility() {
       if (document.hidden) {
         running = false;
@@ -419,38 +364,27 @@ export default function SilkBackground() {
     }
     document.addEventListener('visibilitychange', onVisibility);
 
-    // ── Render loop ───────────────────────────────────────────────────────
-    let startTime = performance.now();
-    // Smoothed cursor presence for gradual fade-in/out
-    let smoothPresence = 0;
+    const startTime = performance.now();
 
     function frame(now: number) {
       if (!running) return;
       rafId = requestAnimationFrame(frame);
 
-      resize(); // cheap no-op when size unchanged
+      resize();
 
       const elapsed = (now - startTime) / 1000;
+      smoothPresence += (cursorPresence - smoothPresence) * 0.05;
 
-      // Smooth cursor presence (lerp towards target)
-      smoothPresence += (cursorPresence - smoothPresence) * 0.08;
-
-      // u_scene = vec4(width, height, time * speed, colorCount)
-      // speed = 0.76 (from 35/100 mapping)
-      gl!.uniform4f(loc.scene, width, height, elapsed * 0.76, 4.0);
-
-      // u_space = vec4(offsetX, offsetY, mouseX, mouseY)
+      // Slow, smooth fluid flow (0.28 speed)
+      gl!.uniform4f(loc.scene, width, height, elapsed * 0.28, 4.0);
       gl!.uniform4f(loc.space, 0.0, 0.0, mouseX, mouseY);
-
-      // u_cursor = vec4(presence, effect=2.0 (swirl), strength 0.65, radius 0.46)
-      gl!.uniform4f(loc.cursor, smoothPresence, 2.0, 0.65, 0.46);
+      gl!.uniform4f(loc.cursor, smoothPresence, 2.0, 0.35, 0.45);
 
       gl!.drawArrays(gl!.TRIANGLES, 0, 3);
     }
 
     rafId = requestAnimationFrame(frame);
 
-    // ── Cleanup ───────────────────────────────────────────────────────────
     return () => {
       running = false;
       cancelAnimationFrame(rafId);
@@ -465,7 +399,6 @@ export default function SilkBackground() {
     };
   }, [mounted]);
 
-  // Return nothing on the server to avoid hydration mismatch
   if (!mounted) return null;
 
   return (
@@ -478,8 +411,10 @@ export default function SilkBackground() {
         width: '100%',
         height: '100%',
         zIndex: 0,
-        pointerEvents: 'auto',   // we need this for cursor tracking
+        pointerEvents: 'auto',
         display: 'block',
+        opacity: opacity,
+        transition: 'opacity 0.5s ease',
       }}
     />
   );
