@@ -1,7 +1,6 @@
 'use client';
 
 import React from 'react';
-import { motion } from 'framer-motion';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -65,44 +64,45 @@ const activityData: ActivityItem[] = [
 ];
 
 const iconMap = {
-  dispute: { icon: AlertTriangle, color: 'text-red-400', bg: 'bg-red-400/10' },
+  dispute: { icon: AlertTriangle, color: 'text-rose-400', bg: 'bg-rose-400/10' },
   payment: { icon: DollarSign, color: 'text-emerald-400', bg: 'bg-emerald-400/10' },
-  evidence: { icon: FileText, color: 'text-blue-400', bg: 'bg-blue-400/10' },
-  alert: { icon: ShieldAlert, color: 'text-yellow-400', bg: 'bg-yellow-400/10' },
+  evidence: { icon: FileText, color: 'text-[#3B9EFF]', bg: 'bg-[#0070BA]/10' },
+  alert: { icon: ShieldAlert, color: 'text-amber-400', bg: 'bg-amber-400/10' },
   resolution: { icon: CheckCircle2, color: 'text-emerald-400', bg: 'bg-emerald-400/10' },
 };
 
 export default function ActivityFeed() {
   return (
-    <div className="glass-card p-6">
-      <div className="flex items-center justify-between mb-6">
-        <h3 className="text-lg font-semibold text-white">Recent Activity</h3>
-        <button className="flex items-center gap-1 text-xs text-[#0070BA] hover:text-[#0090E0] transition-colors font-medium">
+    <div className="p-5 rounded-xl bg-[#121826] border border-white/[0.06]">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-base font-bold text-white">Recent Activity</h3>
+        <button className="flex items-center gap-1 text-xs text-[#3B9EFF] hover:underline font-medium">
           View All <ArrowRight className="w-3 h-3" />
         </button>
       </div>
       <div className="space-y-1">
-        {activityData.map((item, index) => {
+        {activityData.map((item) => {
           const { icon: Icon, color, bg } = iconMap[item.type];
           return (
-            <motion.div
+            <div
               key={item.id}
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.3, delay: index * 0.08 }}
-              className="flex items-start gap-3 p-3 rounded-xl hover:bg-white/[0.02] transition-colors cursor-pointer group"
+              className="flex items-start gap-3 p-3 rounded-lg hover:bg-white/[0.03] transition-colors cursor-pointer group"
             >
-              <div className={`p-2 rounded-lg ${bg} mt-0.5`}>
+              <div className={`p-2 rounded-lg ${bg} mt-0.5 shrink-0`}>
                 <Icon className={`w-4 h-4 ${color}`} />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-white group-hover:text-[#0090E0] transition-colors">
+                <p className="text-sm font-semibold text-white group-hover:text-[#3B9EFF] transition-colors truncate">
                   {item.title}
                 </p>
-                <p className="text-xs text-gray-500 mt-0.5 truncate">{item.description}</p>
+                <p className="text-xs text-slate-400 truncate mt-0.5">
+                  {item.description}
+                </p>
               </div>
-              <span className="text-[11px] text-gray-600 whitespace-nowrap mt-1">{item.time}</span>
-            </motion.div>
+              <span className="text-[11px] text-slate-500 whitespace-nowrap tabular-nums">
+                {item.time}
+              </span>
+            </div>
           );
         })}
       </div>
