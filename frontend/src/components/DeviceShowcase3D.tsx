@@ -164,7 +164,7 @@ export default function DeviceShowcase3D() {
         ref={containerRef}
         onMouseMove={handleMouseMove}
         onMouseLeave={resetRotation}
-        className="relative w-full min-h-[760px] lg:min-h-[860px] rounded-3xl overflow-hidden bg-gradient-to-b from-[#07131E] via-[#0A1A2A] to-[#060D17] border border-cyan-500/20 shadow-[0_25px_70px_rgba(0,0,0,0.8)] p-4 sm:p-8 flex items-center justify-center select-none"
+        className="relative w-full min-h-[760px] lg:min-h-[860px] rounded-3xl overflow-hidden bg-gradient-to-b from-[#06121F]/90 via-[#071927]/85 to-[#040C14]/90 border border-emerald-500/25 shadow-[0_25px_70px_rgba(0,0,0,0.7)] p-4 sm:p-8 flex items-center justify-center select-none backdrop-blur-xl"
         style={{ perspective: 1400 }}
       >
         {/* Background Subtle Tech Grid and Radial Ambient Lights */}

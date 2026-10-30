@@ -13,7 +13,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       {/* Animated WebGL Silk Shader Background */}
       <SilkBackground />
       {/* Semi-transparent overlay to ensure content readability */}
-      <div className="fixed inset-0 bg-[#080D1A]/40 pointer-events-none z-[1]" />
+      <div className="fixed inset-0 bg-[#060C18]/55 pointer-events-none z-[1]" />
 
       {/* Sidebar (Desktop sticky in flex flow + Mobile drawer) */}
       <Sidebar

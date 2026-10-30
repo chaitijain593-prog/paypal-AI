@@ -350,9 +350,9 @@ export default function SilkBackground() {
     // Colours: #0B1026, #3D46E8, #B18CFF, #FFD6E7
     const colors = new Float32Array([
       0.043, 0.063, 0.149,   // #0B1026
-      0.239, 0.275, 0.910,   // #3D46E8
-      0.694, 0.549, 1.000,   // #B18CFF
-      1.000, 0.839, 0.906,   // #FFD6E7
+      0.000, 0.439, 0.729,   // #0070BA PayPal Royal Blue
+      0.063, 0.725, 0.506,   // #10B981 Emerald Green
+      0.463, 0.886, 0.263,   // #76E243 Neon Lime Accent
       0, 0, 0,               // unused slots 4–7
       0, 0, 0,
       0, 0, 0,

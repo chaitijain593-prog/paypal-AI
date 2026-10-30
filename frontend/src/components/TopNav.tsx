@@ -18,8 +18,7 @@ interface TopNavProps {
 }
 
 const pageTitles: Record<string, { title: string; subtitle: string }> = {
-  '/': { title: '3D Sentinel Portal', subtitle: 'Interactive 3D defense orb, risk matrix & sandbox intelligence' },
-  '/showcase': { title: '3D E-Wallet Studio', subtitle: 'Isometric 3D mobile devices, autonomous wallet & dispute defense showcase' },
+  '/': { title: '3D E-Wallet Studio', subtitle: 'Isometric 3D mobile devices, autonomous wallet & dispute defense showcase' },
   '/arena': { title: 'Dispute Arena', subtitle: 'Adversarial AI red-team simulations & prompt injection firewall' },
   '/transactions': { title: 'Transactions Ledger', subtitle: 'PayPal Sandbox orders, dispute drill-downs & logs' },
   '/proofs': { title: 'Proof Vault', subtitle: 'SHA-256 Merkle proof chain & Visa CE 3.0 evidence ledger' },
