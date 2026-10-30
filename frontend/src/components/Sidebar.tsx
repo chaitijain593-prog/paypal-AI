@@ -13,6 +13,7 @@ import {
   Zap,
   Lock,
   Sparkles,
+  Smartphone,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -22,6 +23,7 @@ interface SidebarProps {
 
 const navItems = [
   { href: '/', label: '3D Sentinel Portal', icon: Sparkles, badge: '3D Hub' },
+  { href: '/showcase', label: '3D E-Wallet Studio', icon: Smartphone, badge: 'UI Kit' },
   { href: '/arena', label: 'Dispute Arena', icon: Swords, badge: 'Red Team' },
   { href: '/transactions', label: 'Transactions Ledger', icon: ArrowLeftRight },
   { href: '/proofs', label: 'Proof Vault', icon: ShieldCheck, badge: 'CE 3.0' },
@@ -110,6 +112,8 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarPr
                     className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
                       item.badge === '3D Hub'
                         ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 shadow-[0_0_10px_rgba(6,182,212,0.2)]'
+                        : item.badge === 'UI Kit'
+                        ? 'bg-[#76E243]/20 text-[#76E243] border border-[#76E243]/30 shadow-[0_0_10px_rgba(118,226,67,0.2)]'
                         : item.badge === 'Red Team'
                         ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
                         : 'bg-[#FFC43A]/20 text-[#FFC43A] border border-[#FFC43A]/30'

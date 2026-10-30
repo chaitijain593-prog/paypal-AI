@@ -17,6 +17,7 @@ import {
   AlertTriangle,
   Sparkles,
   Layers,
+  Smartphone,
 } from 'lucide-react';
 import ThreeSentinelScene from '@/components/ThreeSentinelScene';
 import ActivityFeed from '@/components/ActivityFeed';
