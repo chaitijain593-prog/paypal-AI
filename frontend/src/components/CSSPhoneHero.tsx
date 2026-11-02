@@ -1,23 +1,58 @@
 'use client';
 
-import React from 'react';
-import { motion, MotionValue, useTransform } from 'framer-motion';
+import React, { useState } from 'react';
+import { motion, MotionValue } from 'framer-motion';
 import { CheckCircle2, Lock } from 'lucide-react';
 import PhoneScreenContent from '@/components/PhoneScreenContent';
 
 interface CSSPhoneHeroProps {
-  progress?: MotionValue<number>;
+  progress?: MotionValue<number> | React.MutableRefObject<number>;
+  presetAngle?: 'isometric' | 'floating' | 'flat';
 }
 
-export default function CSSPhoneHero({ progress }: CSSPhoneHeroProps) {
-  // If progress is provided, can subtly respond to scroll
+export default function CSSPhoneHero({ presetAngle = 'isometric' }: CSSPhoneHeroProps) {
+  const [mouseOffset, setMouseOffset] = useState({ x: 0, y: 0 });
+
+  const getBaseRotation = () => {
+    switch (presetAngle) {
+      case 'floating':
+        return { x: 4, y: -12, z: 1 };
+      case 'flat':
+        return { x: 0, y: 0, z: 0 };
+      case 'isometric':
+      default:
+        return { x: 8, y: -22, z: 3 };
+    }
+  };
+
+  const base = getBaseRotation();
+  const currentX = base.x - mouseOffset.y * 8;
+  const currentY = base.y + mouseOffset.x * 12;
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (presetAngle === 'flat') return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width - 0.5;
+    const y = (e.clientY - rect.top) / rect.height - 0.5;
+    setMouseOffset({ x, y });
+  };
+
+  const handleMouseLeave = () => {
+    setMouseOffset({ x: 0, y: 0 });
+  };
+
   return (
-    <div className="relative w-full h-[580px] flex items-center justify-center select-none" style={{ perspective: '1400px' }}>
+    <div
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+      className="relative w-full h-[580px] flex items-center justify-center select-none"
+      style={{ perspective: '1400px' }}
+    >
       <div
-        className="relative w-full max-w-sm h-full flex items-center justify-center"
+        className="relative w-full max-w-sm h-full flex items-center justify-center transition-transform duration-300 ease-out"
         style={{
           transformStyle: 'preserve-3d',
-          transform: 'rotateX(8deg) rotateY(-22deg) rotateZ(3deg)',
+          transform: `rotateX(${currentX}deg) rotateY(${currentY}deg) rotateZ(${base.z}deg)`,
         }}
       >
         {/* Main Realistic Phone Frame */}

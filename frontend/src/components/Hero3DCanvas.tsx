@@ -12,7 +12,6 @@ import {
 import * as THREE from 'three';
 import { CheckCircle2, Lock, ShieldCheck } from 'lucide-react';
 import PhoneScreenContent from '@/components/PhoneScreenContent';
-
 // Helper to build a rounded-corner smartphone chassis shape
 function createRoundedRectShape(width: number, height: number, radius: number) {
   const shape = new THREE.Shape();
@@ -37,9 +36,7 @@ function GLTFPhone() {
     <group>
       <primitive object={gltf.scene} scale={1.0} />
       {/* HTML screen overlay on the GLTF model */}
-      <Html
-        transform
-        occlude
+      <Html transform
         distanceFactor={1.6}
         position={[0, 0, 0.08]}
         className="w-[335px] h-[670px] pointer-events-auto rounded-[34px] overflow-hidden"
@@ -120,10 +117,8 @@ function ProceduralPhone({ cardsOpacityRef }: { cardsOpacityRef: React.MutableRe
         />
       </mesh>
 
-      {/* Live Interactive Fintech UI via drei <Html transform occlude> */}
-      <Html
-        transform
-        occlude
+      {/* Live Interactive Fintech UI via drei <Html transform> */}
+      <Html transform
         distanceFactor={1.6}
         position={[0, 0, 0.065]}
         className="w-[335px] h-[670px] pointer-events-auto rounded-[34px] overflow-hidden shadow-2xl"

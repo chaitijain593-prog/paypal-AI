@@ -363,7 +363,7 @@ export default function StartingPage() {
 
                   {/* The 3D Fiber Scene */}
                   <div className="w-full h-full relative">
-                    <Hero3DCanvas progressRef={progressRef} presetAngle={presetAngle} />
+                    <CSSPhoneHero presetAngle={presetAngle} />
                   </div>
                 </motion.div>
               </div>
