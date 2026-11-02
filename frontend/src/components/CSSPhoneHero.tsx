@@ -49,12 +49,6 @@ export default function CSSPhoneHero({ progress }: CSSPhoneHeroProps) {
 
           {/* Inner chassis */}
           <div className="w-full h-full rounded-[41px] bg-slate-950 p-2.5 relative overflow-hidden flex flex-col justify-between">
-            {/* Dynamic Island */}
-            <div className="absolute top-3.5 left-1/2 -translate-x-1/2 w-24 h-4 bg-black rounded-full z-40 flex items-center justify-between px-2.5">
-              <div className="w-2 h-2 rounded-full bg-slate-900 border border-slate-800" />
-              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-            </div>
-
             {/* Glass reflection */}
             <div
               className="absolute inset-0 rounded-[34px] pointer-events-none z-30"
@@ -71,11 +65,11 @@ export default function CSSPhoneHero({ progress }: CSSPhoneHeroProps) {
         {/* Floating Front Card (+80px on Z) */}
         <div
           style={{
-            transform: 'translate3d(-36px, 20px, 80px) rotateY(10deg)',
+            transform: 'translate3d(-20px, 20px, 80px) rotateY(10deg)',
             boxShadow:
               '-22px 32px 55px -10px rgba(0, 0, 0, 0.8), -8px 14px 22px -5px rgba(0, 0, 0, 0.55)',
           }}
-          className="absolute -bottom-4 -left-6 sm:-left-12 w-[240px] rounded-xl bg-[#121826] border border-white/[0.08] p-4 z-30 select-none"
+          className="absolute -bottom-2 -left-2 sm:-left-4 w-[210px] rounded-xl bg-[#121826] border border-white/[0.08] p-3 z-30 select-none"
         >
           <div className="text-center space-y-2.5">
             <div className="w-12 h-12 rounded-full bg-emerald-500/15 border border-emerald-500/30 mx-auto flex items-center justify-center text-emerald-400 shadow-inner">

@@ -82,29 +82,32 @@ function ProceduralPhone({ cardsOpacityRef }: { cardsOpacityRef: React.MutableRe
 
   const frontCardRef = useRef<HTMLDivElement>(null);
   const backCardRef = useRef<HTMLDivElement>(null);
+  const currentCardOpacity = useRef(1);
 
-  // Update floating cards opacity based on scroll stage without React re-render
+  // Update floating cards opacity with spring inertia without React re-render
   useFrame(() => {
-    const op = cardsOpacityRef.current ?? 1;
+    const targetOp = cardsOpacityRef.current ?? 1;
+    currentCardOpacity.current = THREE.MathUtils.lerp(currentCardOpacity.current, targetOp, 0.07);
+    const op = currentCardOpacity.current;
     if (frontCardRef.current) {
       frontCardRef.current.style.opacity = String(op);
-      frontCardRef.current.style.transform = `translate3d(0, 0, 0) scale(${0.85 + op * 0.15})`;
+      frontCardRef.current.style.transform = `translate3d(0, 0, 0) scale(${0.88 + op * 0.12})`;
     }
     if (backCardRef.current) {
       backCardRef.current.style.opacity = String(op * 0.82);
-      backCardRef.current.style.transform = `translate3d(0, 0, 0) scale(${0.85 + op * 0.15})`;
+      backCardRef.current.style.transform = `translate3d(0, 0, 0) scale(${0.88 + op * 0.12})`;
     }
   });
 
   return (
     <group>
-      {/* Outer Titanium Metallic Chassis */}
+      {/* Outer Titanium Metallic Chassis with Octane-Style Specular Bevel */}
       <mesh geometry={bodyGeometry} castShadow receiveShadow>
         <meshStandardMaterial
           color="#1e293b"
-          metalness={0.92}
-          roughness={0.18}
-          envMapIntensity={1.4}
+          metalness={0.94}
+          roughness={0.14}
+          envMapIntensity={1.6}
         />
       </mesh>
 
@@ -115,12 +118,6 @@ function ProceduralPhone({ cardsOpacityRef }: { cardsOpacityRef: React.MutableRe
           roughness={0.08}
           metalness={0.5}
         />
-      </mesh>
-
-      {/* Dynamic Island Pill */}
-      <mesh position={[0, 1.16, 0.066]}>
-        <capsuleGeometry args={[0.028, 0.16, 4, 8]} />
-        <meshBasicMaterial color="#000000" />
       </mesh>
 
       {/* Live Interactive Fintech UI via drei <Html transform occlude> */}
@@ -138,30 +135,30 @@ function ProceduralPhone({ cardsOpacityRef }: { cardsOpacityRef: React.MutableRe
       <Html
         transform
         distanceFactor={1.6}
-        position={[-0.72, -0.42, 0.35]}
+        position={[-0.42, -0.48, 0.35]}
         className="pointer-events-none transition-all duration-300"
       >
         <div
           ref={frontCardRef}
-          className="w-[245px] rounded-2xl bg-[#121826] border border-white/[0.14] p-4 shadow-2xl"
+          className="w-[210px] rounded-2xl bg-[#151D2E]/95 border border-[#3B9EFF]/30 p-3.5 shadow-2xl backdrop-blur-md"
           style={{
-            boxShadow: '-20px 28px 50px -10px rgba(0, 0, 0, 0.85), 0 0 35px rgba(0, 112, 186, 0.3)',
+            boxShadow: '0 20px 45px -10px rgba(0, 0, 0, 0.9), 0 0 30px rgba(0, 112, 186, 0.3)',
           }}
         >
-          <div className="text-center space-y-2.5">
-            <div className="w-11 h-11 rounded-full bg-emerald-500/20 border border-emerald-500/40 mx-auto flex items-center justify-center text-emerald-400 shadow-inner">
-              <CheckCircle2 className="w-6 h-6" />
+          <div className="text-center space-y-2">
+            <div className="w-9 h-9 rounded-full bg-emerald-500/20 border border-emerald-500/40 mx-auto flex items-center justify-center text-emerald-400 shadow-inner">
+              <CheckCircle2 className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-[10px] uppercase font-extrabold tracking-wider text-emerald-400">
+              <p className="text-[9.5px] uppercase font-extrabold tracking-wider text-emerald-400">
                 CE 3.0 Rebuttal Won
               </p>
-              <h3 className="text-sm font-bold text-white mt-0.5">Payment Confirmed</h3>
-              <p className="text-[10px] text-slate-300 mt-0.5">
+              <h3 className="text-xs font-bold text-white mt-0.5">Payment Confirmed</h3>
+              <p className="text-[9.5px] text-slate-300 mt-0.5">
                 Evidence verified by Visa &amp; PayPal
               </p>
             </div>
-            <div className="p-2.5 rounded-xl bg-white/[0.05] border border-white/[0.08] text-left text-xs flex justify-between items-center">
+            <div className="p-2 rounded-xl bg-white/[0.06] border border-white/[0.1] text-left text-[11px] flex justify-between items-center text-slate-200">
               <span className="text-slate-300">Protected Balance:</span>
               <span className="font-bold text-white tabular-nums">$1,249.99</span>
             </div>
@@ -173,26 +170,26 @@ function ProceduralPhone({ cardsOpacityRef }: { cardsOpacityRef: React.MutableRe
       <Html
         transform
         distanceFactor={1.6}
-        position={[0.92, 0.72, -0.24]}
+        position={[0.52, 0.60, -0.24]}
         className="pointer-events-none transition-all duration-300 hidden sm:block"
       >
         <div
           ref={backCardRef}
-          className="w-[240px] rounded-2xl bg-[#121826]/95 border border-white/[0.1] p-3.5 shadow-2xl"
+          className="w-[210px] rounded-2xl bg-[#151D2E]/90 border border-white/[0.12] p-3 shadow-2xl backdrop-blur-md"
           style={{
             filter: 'blur(0.5px)',
           }}
         >
-          <div className="rounded-xl p-3 bg-white/[0.04] border border-white/[0.08] space-y-1.5">
-            <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-300">
+          <div className="rounded-xl p-2.5 bg-white/[0.04] border border-white/[0.08] space-y-1.5">
+            <div className="flex items-center justify-between text-[9px] font-bold uppercase tracking-wider text-slate-300">
               <span>BUYER AI AGENT</span>
               <span className="text-[#3B9EFF]">AGENT #409</span>
             </div>
             <div>
-              <p className="text-[10px] text-slate-400">Pre-Authorized Balance</p>
-              <p className="text-lg font-extrabold text-white tabular-nums">$15,236.00</p>
+              <p className="text-[9px] text-slate-400">Pre-Authorized Balance</p>
+              <p className="text-base font-extrabold text-white tabular-nums">$15,236.00</p>
             </div>
-            <div className="pt-1 flex items-center gap-1.5 text-[10px] font-medium text-emerald-400">
+            <div className="pt-0.5 flex items-center gap-1.5 text-[9px] font-medium text-emerald-400">
               <ShieldCheck className="w-3.5 h-3.5" />
               <span>Spending Guard: Auto-Checkout</span>
             </div>
@@ -298,38 +295,38 @@ function Scene({ progressRef, presetAngle = 'isometric' }: SceneProps) {
     const mouseRotX = -mouseRef.current.y * 0.06 * parallaxFactor;
     const mouseRotY = mouseRef.current.x * 0.09 * parallaxFactor;
 
-    let targetX = 1.60;
-    let targetY = 0.08;
+    let targetX = 0.15;
+    let targetY = 0.0;
     let targetZ = 0.0;
     let targetRotX = baseRotX + mouseRotX;
     let targetRotY = baseRotY + mouseRotY;
     let targetRotZ = baseRotZ;
-    let targetScale = 0.95;
-    let targetCamZ = 5.6;
+    let targetScale = 1.0;
+    let targetCamZ = 5.2;
     let cardOpacity = 1.0;
 
     if (p <= 0.3) {
-      // 0-30%: phone tilted right, headline visible, cards full opacity
+      // 0-30%: phone tilted at preset angle, headline visible, cards full opacity
       const t = p / 0.3;
-      targetX = THREE.MathUtils.lerp(1.60, 1.45, t);
-      targetY = THREE.MathUtils.lerp(0.08, 0.05, t);
+      targetX = THREE.MathUtils.lerp(0.15, 0.08, t);
+      targetY = 0.0;
       targetRotX = baseRotX + mouseRotX;
       targetRotY = baseRotY + mouseRotY;
       targetRotZ = baseRotZ;
-      targetScale = 0.95;
-      targetCamZ = 5.6;
+      targetScale = 1.0;
+      targetCamZ = 5.2;
       cardOpacity = 1.0 - t * 0.15;
     } else if (p <= 0.6) {
-      // 30-60%: phone rotates to face camera and scales up 1.4x, headline fades out
+      // 30-60%: phone rotates to face camera (rot -> 0), cards fade to 0
       const t = (p - 0.3) / 0.3;
       const ease = t * t * (3 - 2 * t);
-      targetX = THREE.MathUtils.lerp(1.45, 0.0, ease);
-      targetY = THREE.MathUtils.lerp(0.05, 0.0, ease);
+      targetX = THREE.MathUtils.lerp(0.08, 0.0, ease);
+      targetY = 0.0;
       targetRotX = THREE.MathUtils.lerp(baseRotX, 0.0, ease);
       targetRotY = THREE.MathUtils.lerp(baseRotY, 0.0, ease);
       targetRotZ = THREE.MathUtils.lerp(baseRotZ, 0.0, ease);
-      targetScale = THREE.MathUtils.lerp(0.95, 1.35, ease);
-      targetCamZ = THREE.MathUtils.lerp(5.6, 5.0, ease);
+      targetScale = THREE.MathUtils.lerp(1.0, 1.25, ease);
+      targetCamZ = THREE.MathUtils.lerp(5.2, 4.6, ease);
       cardOpacity = THREE.MathUtils.lerp(0.85, 0.0, ease);
     } else {
       // 60-100%: camera pushes into screen, bezel zooms past viewport, Command Center fades in
@@ -340,8 +337,8 @@ function Scene({ progressRef, presetAngle = 'isometric' }: SceneProps) {
       targetRotX = 0.0;
       targetRotY = 0.0;
       targetRotZ = 0.0;
-      targetScale = THREE.MathUtils.lerp(1.35, 3.5, ease);
-      targetCamZ = THREE.MathUtils.lerp(5.0, 2.1, ease);
+      targetScale = THREE.MathUtils.lerp(1.25, 3.2, ease);
+      targetCamZ = THREE.MathUtils.lerp(4.6, 2.2, ease);
       cardOpacity = 0.0;
     }
 
@@ -363,10 +360,11 @@ function Scene({ progressRef, presetAngle = 'isometric' }: SceneProps) {
 
   return (
     <>
-      {/* Lighting & Environment */}
-      <ambientLight intensity={0.8} />
-      <directionalLight position={[5, 8, 6]} intensity={1.6} castShadow />
-      <directionalLight position={[-4, 3, -2]} intensity={0.5} color="#0070BA" />
+      {/* Lighting & Environment (Octane-Style Studio Lights) */}
+      <ambientLight intensity={0.75} />
+      <directionalLight position={[5, 8, 6]} intensity={1.7} castShadow />
+      <directionalLight position={[-5, 4, 3]} intensity={1.1} color="#CBD5E1" />
+      <directionalLight position={[-3, -2, -2]} intensity={0.5} color="#0070BA" />
 
       <Environment preset="city" />
 
@@ -400,7 +398,7 @@ export default function Hero3DCanvas({ progressRef, presetAngle = 'isometric' }:
     <div className="w-full h-full relative select-none">
       <Canvas
         shadows
-        camera={{ position: [0, 0, 5.6], fov: 45 }}
+        camera={{ position: [0, 0, 5.2], fov: 45 }}
         gl={{ antialias: true, alpha: true }}
         dpr={[1, 2]}
       >

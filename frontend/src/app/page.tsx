@@ -74,11 +74,26 @@ export default function StartingPage() {
     }
   }, [storyboardProgress]);
 
+  // Responsive mobile listener
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 1024);
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   // Storyboard Left Column:
   // 0-30%: visible
   // 30-60%: headline & text fade out and slide left
   const leftColOpacity = useTransform(storyboardProgress, [0, 0.28, 0.52], [1, 1, 0]);
   const leftColX = useTransform(storyboardProgress, [0, 0.28, 0.52], [0, 0, -60]);
+
+  // Storyboard Right Column:
+  // 30-60%: slides from right half to dead center, scales up 1.2x
+  const rightColX = useTransform(storyboardProgress, [0.30, 0.60], ['0%', '-50%']);
+  const rightColScale = useTransform(storyboardProgress, [0.30, 0.60], [1.0, 1.20]);
 
   // Storyboard Stage 3 (60-100%):
   // Camera pushes in, and Command Center preview fades in
@@ -214,7 +229,7 @@ export default function StartingPage() {
           <div className="sticky top-[73px] h-[calc(100vh-73px)] w-full overflow-hidden flex items-center justify-center">
             {/* Main Stage Grid */}
             <div className="w-full max-w-7xl mx-auto px-6 md:px-12 h-full flex items-center relative z-20 pointer-events-none">
-              <div className="w-full grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+              <div className="w-full grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
                 {/* 0-30% & 30-60%: Left Column (fades out over 30-60%) */}
                 <motion.div
                   style={{
@@ -301,16 +316,22 @@ export default function StartingPage() {
                   </div>
                 </motion.div>
 
-                {/* Right Column: 3D Angle Preset Toggle & Spacer */}
-                <div className="lg:col-span-6 h-[640px] w-full flex flex-col justify-between items-end pb-4 pointer-events-none">
-                  {/* Preset Buttons */}
+                {/* Right Column: Holds the 3D Canvas + Angle Preset Controls */}
+                <motion.div
+                  style={{
+                    x: rightColX,
+                    scale: rightColScale,
+                  }}
+                  className="lg:col-span-6 h-[520px] sm:h-[560px] lg:h-[600px] max-h-[calc(100vh-140px)] w-full relative flex items-center justify-center pointer-events-auto z-20"
+                >
+                  {/* 3D Angle Preset Toggle (Cleanly docked in top-right corner of right column) */}
                   <motion.div
                     style={{ opacity: leftColOpacity }}
-                    className="pointer-events-auto flex items-center gap-1.5 p-1 rounded-xl bg-[#121826]/85 border border-white/[0.08] backdrop-blur-md shadow-lg"
+                    className="absolute top-2 right-2 sm:right-4 z-30 flex items-center gap-1 p-1 rounded-xl bg-[#121826]/90 border border-white/[0.08] backdrop-blur-md shadow-lg pointer-events-auto"
                   >
                     <button
                       onClick={() => setPresetAngle('isometric')}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-300 ${
+                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all duration-300 ${
                         presetAngle === 'isometric'
                           ? 'bg-[#0070BA] text-white shadow-sm'
                           : 'text-slate-400 hover:text-white'
@@ -320,7 +341,7 @@ export default function StartingPage() {
                     </button>
                     <button
                       onClick={() => setPresetAngle('floating')}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-300 ${
+                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all duration-300 ${
                         presetAngle === 'floating'
                           ? 'bg-[#0070BA] text-white shadow-sm'
                           : 'text-slate-400 hover:text-white'
@@ -330,7 +351,7 @@ export default function StartingPage() {
                     </button>
                     <button
                       onClick={() => setPresetAngle('flat')}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-300 ${
+                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all duration-300 ${
                         presetAngle === 'flat'
                           ? 'bg-[#0070BA] text-white shadow-sm'
                           : 'text-slate-400 hover:text-white'
@@ -339,14 +360,13 @@ export default function StartingPage() {
                       Flat
                     </button>
                   </motion.div>
-                  <div className="flex-1" />
-                </div>
-              </div>
-            </div>
 
-            {/* The 3D Fiber Scene (Spans full viewport behind the text grid) */}
-            <div className="absolute inset-0 z-10 pointer-events-none">
-              <Hero3DCanvas progressRef={progressRef} presetAngle={presetAngle} />
+                  {/* The 3D Fiber Scene */}
+                  <div className="w-full h-full relative">
+                    <Hero3DCanvas progressRef={progressRef} presetAngle={presetAngle} />
+                  </div>
+                </motion.div>
+              </div>
             </div>
 
             {/* 60-100% Storyboard: Command Center Seamless Zoom-In Overlay */}
