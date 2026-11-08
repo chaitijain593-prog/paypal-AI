@@ -124,6 +124,9 @@ export interface ApiGenerateProofResponse {
   leaf_hashes: string[];
   proof_path: { direction: string; sibling: string; step: string }[];
   zk_predicates_applied: string[];
+  salted_commitments_applied?: string[];
+  ed25519_signature?: string;
+  merchant_public_key?: string;
   status: string;
   created_at: string;
   proof_record: any;
@@ -160,6 +163,8 @@ export interface ApiProofVerifyResult {
     actor: string;
     hash: string;
   }>;
+  ed25519_signature?: string;
+  signature_verified?: boolean;
   data_source?: 'LIVE' | 'SIMULATED';
 }
 

@@ -23,7 +23,7 @@ from app.models.schemas import (
 )
 from app.services.arena_engine import evaluate_live_attack, execute_arena_simulation
 from app.services.firewall import firewall_engine
-from app.services.proof_engine import MerkleTree, sha256
+from app.services.proof_engine import MerkleTree, hash_leaf, sha256
 
 client = TestClient(app)
 
@@ -41,7 +41,7 @@ def test_merkle_tree_build_and_deterministic_root():
 
     assert len(tree.leaf_hashes) == 4
     for idx, leaf in enumerate(leaves):
-        assert tree.leaf_hashes[idx] == sha256(leaf)
+        assert tree.leaf_hashes[idx] == hash_leaf(leaf)
 
     assert isinstance(tree.root_hash, str)
     assert len(tree.root_hash) == 64

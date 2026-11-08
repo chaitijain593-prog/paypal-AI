@@ -207,6 +207,8 @@ class ProofVerifyResult(BaseModel):
     status: ProofStatus
     verified_at: datetime
     chain_of_custody: list[dict[str, Any]]
+    ed25519_signature: str | None = None
+    signature_verified: bool | None = None
     data_source: Literal["LIVE", "SIMULATED"] = "SIMULATED"
 
 
@@ -321,7 +323,10 @@ class GenerateProofResponse(BaseModel):
     leaf_count: int
     leaf_hashes: list[str]
     proof_path: list[dict[str, str]]
-    zk_predicates_applied: list[str]
+    zk_predicates_applied: list[str] = Field(default_factory=list)
+    salted_commitments_applied: list[str] = Field(default_factory=list)
+    ed25519_signature: str | None = None
+    merchant_public_key: str | None = None
     status: ProofStatus
     created_at: datetime
     proof_record: dict[str, Any]
