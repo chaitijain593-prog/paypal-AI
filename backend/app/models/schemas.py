@@ -337,9 +337,14 @@ class GenerateProofResponse(BaseModel):
 
 class ControlTowerStatus(str, Enum):
     PENDING_REVIEW = "PENDING_REVIEW"
+    SUBMITTING = "SUBMITTING"
+    SUBMITTED = "SUBMITTED"
     APPROVED_AND_SUBMITTED = "APPROVED_AND_SUBMITTED"
     EDITED_AND_SUBMITTED = "EDITED_AND_SUBMITTED"
+    CONCEDING = "CONCEDING"
+    CONCEDED = "CONCEDED"
     REJECTED_CONCEDED = "REJECTED_CONCEDED"
+    FAILED = "FAILED"
 
 
 class AIRecommendedAction(str, Enum):
@@ -398,6 +403,7 @@ class ControlTowerItem(BaseModel):
     created_at: datetime
     updated_at: datetime
     creator_name: str = "AI_DEFENSE_ENGINE"
+    idempotency_key: str | None = None
     data_source: Literal["LIVE", "SIMULATED"] = "SIMULATED"
 
 

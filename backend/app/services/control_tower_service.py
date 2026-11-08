@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -18,6 +19,8 @@ from app.db import (
     compute_audit_hash,
     get_db_connection,
     init_db,
+    load_control_tower_items,
+    save_control_tower_item,
     verify_audit_hash_chain,
 )
 from app.models.schemas import (
@@ -305,33 +308,47 @@ class ControlTowerStore:
     def __init__(self) -> None:
         self._items: dict[str, ControlTowerItem] = {}
         init_db()
-        self.reset_store()
+        self.load_or_seed_store()
+
+    def load_or_seed_store(self) -> None:
+        """Loads items from SQLite or seeds initial records if DB table is empty."""
+        init_db()
+        loaded = load_control_tower_items()
+        if loaded:
+            self._items = loaded
+        else:
+            self._items.clear()
+            for item in _build_initial_seed():
+                self._items[item.id] = item
+                save_control_tower_item(item)
+                # Persist initial audit log entry into SQLite
+                if item.audit_trail:
+                    first = item.audit_trail[0]
+                    append_audit_log_entry(
+                        item_id=item.id,
+                        actor=first.actor,
+                        action=first.action,
+                        previous_state=first.previous_state,
+                        new_state=first.new_state,
+                        reviewer_notes=first.reviewer_notes,
+                        payload_hash=first.payload_hash,
+                        paypal_api_status=first.paypal_api_status,
+                        timestamp=first.timestamp,
+                    )
 
     def reset_store(self) -> None:
+        """Resets Control Tower queue items without ever deleting historical audit logs."""
         init_db()
         self._items.clear()
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("DELETE FROM audit_log")
+            # NEVER delete from audit_log!
             cursor.execute("DELETE FROM control_tower_items")
             conn.commit()
 
         for item in _build_initial_seed():
             self._items[item.id] = item
-            # Persist initial audit log entry into SQLite
-            if item.audit_trail:
-                first = item.audit_trail[0]
-                append_audit_log_entry(
-                    item_id=item.id,
-                    actor=first.actor,
-                    action=first.action,
-                    previous_state=first.previous_state,
-                    new_state=first.new_state,
-                    reviewer_notes=first.reviewer_notes,
-                    payload_hash=first.payload_hash,
-                    paypal_api_status=first.paypal_api_status,
-                    timestamp=first.timestamp,
-                )
+            save_control_tower_item(item)
 
     def get_items(self, status: str | None = None) -> tuple[ControlTowerSummaryKPI, list[ControlTowerItem]]:
         all_list = list(self._items.values())
@@ -339,7 +356,7 @@ class ControlTowerStore:
 
         # Compute KPIs
         pending_items = [i for i in all_list if i.status == ControlTowerStatus.PENDING_REVIEW]
-        resolved_items = [i for i in all_list if i.status != ControlTowerStatus.PENDING_REVIEW]
+        resolved_items = [i for i in all_list if i.status not in (ControlTowerStatus.PENDING_REVIEW, ControlTowerStatus.SUBMITTING, ControlTowerStatus.CONCEDING)]
 
         total_at_risk = sum(i.amount for i in pending_items)
         urgent_count = sum(1 for i in pending_items if (i.sla_deadline - now).total_seconds() < 86400)
@@ -386,56 +403,120 @@ class ControlTowerStore:
         if reviewer_name and reviewer_name.strip().lower() == item.creator_name.strip().lower():
             raise MakerCheckerError("Maker cannot be checker: reviewer must be different from item creator")
 
-        # Enforce idempotency: cannot finalize an already resolved item
-        if item.status != ControlTowerStatus.PENDING_REVIEW:
+        # Allow submission only from PENDING_REVIEW or retrying from FAILED
+        if item.status not in (ControlTowerStatus.PENDING_REVIEW, ControlTowerStatus.FAILED):
             raise ValueError(f"Item {item_id} is already in state '{item.status.value}' and cannot be approved.")
+
+        # Assign or preserve idempotency key
+        if not item.idempotency_key:
+            item.idempotency_key = f"IDEM-{uuid.uuid4().hex[:12].upper()}"
 
         now = datetime.now(timezone.utc)
         prev_state = item.status.value
-        item.status = ControlTowerStatus.APPROVED_AND_SUBMITTED
+
+        # 1. Transition to SUBMITTING before PayPal call
+        item.status = ControlTowerStatus.SUBMITTING
         item.updated_at = now
+        save_control_tower_item(item)
 
-        notes = reviewer_notes or f"Approved drafted defense for submission to PayPal Sandbox."
-        payload_hash = _sha256(f"{item.drafted_defense_letter}|{now.isoformat()}|{reviewer_name}")
-
-        # Dispatch via DisputeProvider
-        provider = get_dispute_provider()
-        debug_id = None
-        response_json = None
-        if isinstance(provider, SandboxDisputeProvider):
-            res = await provider.provide_evidence(item.dispute_id, item.drafted_defense_letter)
-            debug_id = res.get("debug_id")
-            response_json = json.dumps(res.get("response") or res.get("error") or {})
-            if res.get("status") == "SUCCESS":
-                paypal_api_status = f"PAYPAL_SANDBOX_SUBMITTED (HTTP {res.get('http_status', 200)})"
-            else:
-                paypal_api_status = f"PAYPAL_SANDBOX_ERROR ({res.get('http_status', 'FAIL')})"
-        else:
-            paypal_api_status = "SIMULATED_NOT_SENT"
-
-        # Append to hash-chained audit log
+        dispatch_notes = f"Dispatched defense to PayPal. IdempotencyKey={item.idempotency_key}"
+        dispatch_payload_hash = _sha256(f"{item.drafted_defense_letter}|{now.isoformat()}|{reviewer_name}")
         prev_hash, entry_hash = append_audit_log_entry(
             item_id=item.id,
             actor=reviewer_name,
-            action="APPROVE_AND_SUBMIT",
+            action="SUBMIT_DISPATCH",
             previous_state=prev_state,
             new_state=item.status.value,
-            reviewer_notes=notes,
-            payload_hash=payload_hash,
-            paypal_api_status=paypal_api_status,
+            reviewer_notes=dispatch_notes,
+            payload_hash=dispatch_payload_hash,
+            paypal_api_status="PENDING_CALL",
             timestamp=now,
+        )
+        item.audit_trail.append(
+            AuditTrailEntry(
+                timestamp=now,
+                actor=reviewer_name,
+                action="SUBMIT_DISPATCH",
+                previous_state=prev_state,
+                new_state=item.status.value,
+                reviewer_notes=dispatch_notes,
+                payload_hash=dispatch_payload_hash,
+                paypal_api_status="PENDING_CALL",
+                prev_hash=prev_hash,
+                entry_hash=entry_hash,
+            )
+        )
+
+        # 2. Dispatch via DisputeProvider
+        provider = get_dispute_provider()
+        debug_id = None
+        response_json = None
+        is_success = False
+        error_detail = None
+
+        try:
+            if isinstance(provider, SandboxDisputeProvider):
+                res = await provider.provide_evidence(item.dispute_id, item.drafted_defense_letter)
+                debug_id = res.get("debug_id")
+                response_json = json.dumps(res.get("response") or res.get("error") or {})
+                http_status = res.get("http_status", 500)
+                if res.get("status") == "SUCCESS" and 200 <= http_status < 300:
+                    is_success = True
+                    paypal_api_status = f"PAYPAL_SANDBOX_SUBMITTED (HTTP {http_status})"
+                else:
+                    is_success = False
+                    paypal_api_status = f"PAYPAL_SANDBOX_ERROR ({res.get('http_status', 'FAIL')})"
+                    error_detail = str(res.get("error") or "Non-2xx response from PayPal")
+            else:
+                res = await provider.provide_evidence(item.dispute_id, item.drafted_defense_letter)
+                debug_id = res.get("debug_id")
+                response_json = json.dumps(res.get("response") or {})
+                is_success = True
+                paypal_api_status = "SIMULATED_NOT_SENT"
+        except Exception as exc:
+            is_success = False
+            paypal_api_status = f"PAYPAL_API_EXCEPTION ({type(exc).__name__})"
+            error_detail = str(exc)
+
+        # 3. Transition to SUBMITTED on real 2xx, or FAILED on error
+        final_time = datetime.now(timezone.utc)
+        submitting_state = item.status.value
+
+        if is_success:
+            item.status = ControlTowerStatus.SUBMITTED
+            action_name = "APPROVE_AND_SUBMIT"
+            final_notes = reviewer_notes or "Approved drafted defense for submission to PayPal Sandbox."
+        else:
+            item.status = ControlTowerStatus.FAILED
+            action_name = "SUBMIT_FAILED"
+            final_notes = f"Submission failed: {error_detail or paypal_api_status}. Retriable with idempotency_key={item.idempotency_key}."
+
+        item.updated_at = final_time
+        save_control_tower_item(item)
+
+        final_payload_hash = _sha256(f"{item.drafted_defense_letter}|{final_time.isoformat()}|{reviewer_name}")
+        prev_hash, entry_hash = append_audit_log_entry(
+            item_id=item.id,
+            actor=reviewer_name,
+            action=action_name,
+            previous_state=submitting_state,
+            new_state=item.status.value,
+            reviewer_notes=final_notes,
+            payload_hash=final_payload_hash,
+            paypal_api_status=paypal_api_status,
+            timestamp=final_time,
             paypal_debug_id=debug_id,
             paypal_response_json=response_json,
         )
 
         entry = AuditTrailEntry(
-            timestamp=now,
+            timestamp=final_time,
             actor=reviewer_name,
-            action="APPROVE_AND_SUBMIT",
-            previous_state=prev_state,
+            action=action_name,
+            previous_state=submitting_state,
             new_state=item.status.value,
-            reviewer_notes=notes,
-            payload_hash=payload_hash,
+            reviewer_notes=final_notes,
+            payload_hash=final_payload_hash,
             paypal_api_status=paypal_api_status,
             prev_hash=prev_hash,
             entry_hash=entry_hash,
@@ -461,11 +542,14 @@ class ControlTowerStore:
         if reviewer_name and reviewer_name.strip().lower() == item.creator_name.strip().lower():
             raise MakerCheckerError("Maker cannot be checker: reviewer must be different from item creator")
 
-        if item.status != ControlTowerStatus.PENDING_REVIEW:
+        if item.status not in (ControlTowerStatus.PENDING_REVIEW, ControlTowerStatus.FAILED):
             raise ValueError(f"Item {item_id} is already in state '{item.status.value}' and cannot be edited.")
 
         if not updated_defense_letter.strip():
             raise ValueError("Updated defense letter cannot be blank.")
+
+        if not item.idempotency_key:
+            item.idempotency_key = f"IDEM-{uuid.uuid4().hex[:12].upper()}"
 
         now = datetime.now(timezone.utc)
         prev_state = item.status.value
@@ -477,48 +561,109 @@ class ControlTowerStore:
             except ValueError:
                 pass
 
-        item.status = ControlTowerStatus.EDITED_AND_SUBMITTED
+        # 1. Transition to SUBMITTING before PayPal call
+        item.status = ControlTowerStatus.SUBMITTING
         item.updated_at = now
+        save_control_tower_item(item)
 
-        payload_hash = _sha256(f"{updated_defense_letter}|{now.isoformat()}|{reviewer_name}")
-
-        # Dispatch via DisputeProvider
-        provider = get_dispute_provider()
-        debug_id = None
-        response_json = None
-        if isinstance(provider, SandboxDisputeProvider):
-            res = await provider.provide_evidence(item.dispute_id, updated_defense_letter)
-            debug_id = res.get("debug_id")
-            response_json = json.dumps(res.get("response") or res.get("error") or {})
-            if res.get("status") == "SUCCESS":
-                paypal_api_status = f"PAYPAL_SANDBOX_SUBMITTED (HTTP {res.get('http_status', 200)})"
-            else:
-                paypal_api_status = f"PAYPAL_SANDBOX_ERROR ({res.get('http_status', 'FAIL')})"
-        else:
-            paypal_api_status = "SIMULATED_NOT_SENT"
-
+        dispatch_notes = f"Dispatched edited defense to PayPal. IdempotencyKey={item.idempotency_key}"
+        dispatch_payload_hash = _sha256(f"{updated_defense_letter}|{now.isoformat()}|{reviewer_name}")
         prev_hash, entry_hash = append_audit_log_entry(
             item_id=item.id,
             actor=reviewer_name,
-            action="EDIT_AND_SUBMIT",
+            action="SUBMIT_DISPATCH",
             previous_state=prev_state,
             new_state=item.status.value,
-            reviewer_notes=reviewer_notes,
-            payload_hash=payload_hash,
-            paypal_api_status=paypal_api_status,
+            reviewer_notes=dispatch_notes,
+            payload_hash=dispatch_payload_hash,
+            paypal_api_status="PENDING_CALL",
             timestamp=now,
+        )
+        item.audit_trail.append(
+            AuditTrailEntry(
+                timestamp=now,
+                actor=reviewer_name,
+                action="SUBMIT_DISPATCH",
+                previous_state=prev_state,
+                new_state=item.status.value,
+                reviewer_notes=dispatch_notes,
+                payload_hash=dispatch_payload_hash,
+                paypal_api_status="PENDING_CALL",
+                prev_hash=prev_hash,
+                entry_hash=entry_hash,
+            )
+        )
+
+        # 2. Dispatch via DisputeProvider
+        provider = get_dispute_provider()
+        debug_id = None
+        response_json = None
+        is_success = False
+        error_detail = None
+
+        try:
+            if isinstance(provider, SandboxDisputeProvider):
+                res = await provider.provide_evidence(item.dispute_id, updated_defense_letter)
+                debug_id = res.get("debug_id")
+                response_json = json.dumps(res.get("response") or res.get("error") or {})
+                http_status = res.get("http_status", 500)
+                if res.get("status") == "SUCCESS" and 200 <= http_status < 300:
+                    is_success = True
+                    paypal_api_status = f"PAYPAL_SANDBOX_SUBMITTED (HTTP {http_status})"
+                else:
+                    is_success = False
+                    paypal_api_status = f"PAYPAL_SANDBOX_ERROR ({res.get('http_status', 'FAIL')})"
+                    error_detail = str(res.get("error") or "Non-2xx response from PayPal")
+            else:
+                res = await provider.provide_evidence(item.dispute_id, updated_defense_letter)
+                debug_id = res.get("debug_id")
+                response_json = json.dumps(res.get("response") or {})
+                is_success = True
+                paypal_api_status = "SIMULATED_NOT_SENT"
+        except Exception as exc:
+            is_success = False
+            paypal_api_status = f"PAYPAL_API_EXCEPTION ({type(exc).__name__})"
+            error_detail = str(exc)
+
+        # 3. Transition to EDITED_AND_SUBMITTED (or SUBMITTED) on 2xx, FAILED on error
+        final_time = datetime.now(timezone.utc)
+        submitting_state = item.status.value
+
+        if is_success:
+            item.status = ControlTowerStatus.EDITED_AND_SUBMITTED
+            action_name = "EDIT_AND_SUBMIT"
+            final_notes = reviewer_notes
+        else:
+            item.status = ControlTowerStatus.FAILED
+            action_name = "SUBMIT_FAILED"
+            final_notes = f"Submission failed: {error_detail or paypal_api_status}. Retriable with idempotency_key={item.idempotency_key}."
+
+        item.updated_at = final_time
+        save_control_tower_item(item)
+
+        final_payload_hash = _sha256(f"{updated_defense_letter}|{final_time.isoformat()}|{reviewer_name}")
+        prev_hash, entry_hash = append_audit_log_entry(
+            item_id=item.id,
+            actor=reviewer_name,
+            action=action_name,
+            previous_state=submitting_state,
+            new_state=item.status.value,
+            reviewer_notes=final_notes,
+            payload_hash=final_payload_hash,
+            paypal_api_status=paypal_api_status,
+            timestamp=final_time,
             paypal_debug_id=debug_id,
             paypal_response_json=response_json,
         )
 
         entry = AuditTrailEntry(
-            timestamp=now,
+            timestamp=final_time,
             actor=reviewer_name,
-            action="EDIT_AND_SUBMIT",
-            previous_state=prev_state,
+            action=action_name,
+            previous_state=submitting_state,
             new_state=item.status.value,
-            reviewer_notes=reviewer_notes,
-            payload_hash=payload_hash,
+            reviewer_notes=final_notes,
+            payload_hash=final_payload_hash,
             paypal_api_status=paypal_api_status,
             prev_hash=prev_hash,
             entry_hash=entry_hash,
@@ -543,54 +688,118 @@ class ControlTowerStore:
         if reviewer_name and reviewer_name.strip().lower() == item.creator_name.strip().lower():
             raise MakerCheckerError("Maker cannot be checker: reviewer must be different from item creator")
 
-        if item.status != ControlTowerStatus.PENDING_REVIEW:
+        if item.status not in (ControlTowerStatus.PENDING_REVIEW, ControlTowerStatus.FAILED):
             raise ValueError(f"Item {item_id} is already in state '{item.status.value}' and cannot be rejected.")
+
+        if not item.idempotency_key:
+            item.idempotency_key = f"IDEM-{uuid.uuid4().hex[:12].upper()}"
 
         now = datetime.now(timezone.utc)
         prev_state = item.status.value
 
-        item.status = ControlTowerStatus.REJECTED_CONCEDED
+        # 1. Transition to CONCEDING before PayPal call
+        item.status = ControlTowerStatus.CONCEDING
         item.updated_at = now
+        save_control_tower_item(item)
 
-        payload_hash = _sha256(f"REJECTED_{resolution_strategy}|{now.isoformat()}|{reviewer_name}")
-
-        # Dispatch via DisputeProvider
-        provider = get_dispute_provider()
-        debug_id = None
-        response_json = None
-        if isinstance(provider, SandboxDisputeProvider):
-            res = await provider.accept_claim(item.dispute_id, reviewer_notes)
-            debug_id = res.get("debug_id")
-            response_json = json.dumps(res.get("response") or res.get("error") or {})
-            if res.get("status") == "SUCCESS":
-                paypal_api_status = f"PAYPAL_SANDBOX_CONCEDED (HTTP {res.get('http_status', 200)})"
-            else:
-                paypal_api_status = f"PAYPAL_SANDBOX_ERROR ({res.get('http_status', 'FAIL')})"
-        else:
-            paypal_api_status = "SIMULATED_NOT_SENT"
-
+        dispatch_notes = f"Dispatched concession to PayPal. IdempotencyKey={item.idempotency_key}"
+        dispatch_payload_hash = _sha256(f"CONCEDE_{resolution_strategy}|{now.isoformat()}|{reviewer_name}")
         prev_hash, entry_hash = append_audit_log_entry(
             item_id=item.id,
             actor=reviewer_name,
-            action="REJECT_AND_CONCEDE",
+            action="CONCEDE_DISPATCH",
             previous_state=prev_state,
             new_state=item.status.value,
-            reviewer_notes=f"Strategy: {resolution_strategy}. Notes: {reviewer_notes}",
-            payload_hash=payload_hash,
-            paypal_api_status=paypal_api_status,
+            reviewer_notes=dispatch_notes,
+            payload_hash=dispatch_payload_hash,
+            paypal_api_status="PENDING_CALL",
             timestamp=now,
+        )
+        item.audit_trail.append(
+            AuditTrailEntry(
+                timestamp=now,
+                actor=reviewer_name,
+                action="CONCEDE_DISPATCH",
+                previous_state=prev_state,
+                new_state=item.status.value,
+                reviewer_notes=dispatch_notes,
+                payload_hash=dispatch_payload_hash,
+                paypal_api_status="PENDING_CALL",
+                prev_hash=prev_hash,
+                entry_hash=entry_hash,
+            )
+        )
+
+        # 2. Dispatch via DisputeProvider
+        provider = get_dispute_provider()
+        debug_id = None
+        response_json = None
+        is_success = False
+        error_detail = None
+
+        try:
+            if isinstance(provider, SandboxDisputeProvider):
+                res = await provider.accept_claim(item.dispute_id, reviewer_notes)
+                debug_id = res.get("debug_id")
+                response_json = json.dumps(res.get("response") or res.get("error") or {})
+                http_status = res.get("http_status", 500)
+                if res.get("status") == "SUCCESS" and 200 <= http_status < 300:
+                    is_success = True
+                    paypal_api_status = f"PAYPAL_SANDBOX_CONCEDED (HTTP {http_status})"
+                else:
+                    is_success = False
+                    paypal_api_status = f"PAYPAL_SANDBOX_ERROR ({res.get('http_status', 'FAIL')})"
+                    error_detail = str(res.get("error") or "Non-2xx response from PayPal")
+            else:
+                res = await provider.accept_claim(item.dispute_id, reviewer_notes)
+                debug_id = res.get("debug_id")
+                response_json = json.dumps(res.get("response") or {})
+                is_success = True
+                paypal_api_status = "SIMULATED_NOT_SENT"
+        except Exception as exc:
+            is_success = False
+            paypal_api_status = f"PAYPAL_API_EXCEPTION ({type(exc).__name__})"
+            error_detail = str(exc)
+
+        # 3. Transition to CONCEDED on 2xx, or FAILED on error
+        final_time = datetime.now(timezone.utc)
+        conceding_state = item.status.value
+
+        if is_success:
+            item.status = ControlTowerStatus.CONCEDED
+            action_name = "REJECT_AND_CONCEDE"
+            final_notes = f"Strategy: {resolution_strategy}. Notes: {reviewer_notes}"
+        else:
+            item.status = ControlTowerStatus.FAILED
+            action_name = "CONCEDE_FAILED"
+            final_notes = f"Concession failed: {error_detail or paypal_api_status}. Retriable with idempotency_key={item.idempotency_key}."
+
+        item.updated_at = final_time
+        save_control_tower_item(item)
+
+        final_payload_hash = _sha256(f"REJECTED_{resolution_strategy}|{final_time.isoformat()}|{reviewer_name}")
+        prev_hash, entry_hash = append_audit_log_entry(
+            item_id=item.id,
+            actor=reviewer_name,
+            action=action_name,
+            previous_state=conceding_state,
+            new_state=item.status.value,
+            reviewer_notes=final_notes,
+            payload_hash=final_payload_hash,
+            paypal_api_status=paypal_api_status,
+            timestamp=final_time,
             paypal_debug_id=debug_id,
             paypal_response_json=response_json,
         )
 
         entry = AuditTrailEntry(
-            timestamp=now,
+            timestamp=final_time,
             actor=reviewer_name,
-            action="REJECT_AND_CONCEDE",
-            previous_state=prev_state,
+            action=action_name,
+            previous_state=conceding_state,
             new_state=item.status.value,
-            reviewer_notes=f"Strategy: {resolution_strategy}. Notes: {reviewer_notes}",
-            payload_hash=payload_hash,
+            reviewer_notes=final_notes,
+            payload_hash=final_payload_hash,
             paypal_api_status=paypal_api_status,
             prev_hash=prev_hash,
             entry_hash=entry_hash,

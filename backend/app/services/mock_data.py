@@ -7,6 +7,13 @@ import random
 import uuid
 from datetime import datetime, timedelta, timezone
 
+from app.db import (
+    init_db,
+    load_disputes_from_db,
+    load_transactions_from_db,
+    save_disputes_to_db,
+    save_transactions_to_db,
+)
 from app.models.schemas import (
     ArenaMove,
     ArenaRole,
@@ -656,19 +663,31 @@ WEBHOOK_EVENTS: list[WebhookEvent] = [
 
 
 def get_transactions() -> list[Transaction]:
-    return TRANSACTIONS
+    init_db()
+    txns = load_transactions_from_db()
+    if not txns:
+        save_transactions_to_db(TRANSACTIONS)
+        return TRANSACTIONS
+    return txns
 
 
 def get_transaction_by_id(txn_id: str) -> Transaction | None:
-    return next((t for t in TRANSACTIONS if t.id == txn_id), None)
+    txns = get_transactions()
+    return next((t for t in txns if t.id == txn_id), None)
 
 
 def get_disputes() -> list[Dispute]:
-    return DISPUTES
+    init_db()
+    disputes = load_disputes_from_db()
+    if not disputes:
+        save_disputes_to_db(DISPUTES)
+        return DISPUTES
+    return disputes
 
 
 def get_dispute_by_id(dispute_id: str) -> Dispute | None:
-    return next((d for d in DISPUTES if d.id == dispute_id), None)
+    disputes = get_disputes()
+    return next((d for d in disputes if d.id == dispute_id), None)
 
 
 def respond_to_dispute(dispute_id: str, response: DisputeResponse) -> DisputeResponseResult | None:
