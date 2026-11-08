@@ -14,6 +14,7 @@ class Settings:
     """Central configuration singleton."""
 
     # PayPal Sandbox
+    paypal_mode: str = os.getenv("PAYPAL_MODE", "simulated").lower()
     paypal_client_id: str = os.getenv("PAYPAL_CLIENT_ID", "")
     paypal_client_secret: str = os.getenv("PAYPAL_CLIENT_SECRET", "")
     paypal_base_url: str = os.getenv(

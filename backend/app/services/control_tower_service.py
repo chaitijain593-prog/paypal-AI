@@ -13,6 +13,13 @@ import json
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from app.db import (
+    append_audit_log_entry,
+    compute_audit_hash,
+    get_db_connection,
+    init_db,
+    verify_audit_hash_chain,
+)
 from app.models.schemas import (
     AIRecommendedAction,
     AuditTrailEntry,
@@ -21,8 +28,14 @@ from app.models.schemas import (
     ControlTowerSummaryKPI,
     ProofClaim,
 )
+from app.services.dispute_provider import SandboxDisputeProvider, get_dispute_provider
 
 _NOW = datetime.now(timezone.utc)
+
+
+class MakerCheckerError(Exception):
+    """Raised when the reviewer is the same actor as the creator."""
+    pass
 
 
 def _sha256(content: str) -> str:
@@ -88,6 +101,15 @@ def _build_initial_seed() -> list[ControlTowerItem]:
         reviewer_notes="High-value transaction ($1,250.00 > $500.00 limit). All proof verified, routed to human approval queue.",
         payload_hash=_sha256(letter_1),
         paypal_api_status="PAUSED_LOCAL_QUEUE",
+        prev_hash="GENESIS",
+        entry_hash=compute_audit_hash(
+            "GENESIS",
+            "AI Dispute Engine (PaySentinel)",
+            "PAUSED_FOR_HUMAN_REVIEW",
+            ControlTowerStatus.PENDING_REVIEW.value,
+            _sha256(letter_1),
+            "PAUSED_LOCAL_QUEUE",
+        ),
     )
 
     item_1 = ControlTowerItem(
@@ -160,6 +182,15 @@ def _build_initial_seed() -> list[ControlTowerItem]:
         reviewer_notes="Confidence 0.62 < 0.80 cutoff. Courier photo unclear and buyer message contained quarantined prompt injection attempt.",
         payload_hash=_sha256(letter_2),
         paypal_api_status="PAUSED_LOCAL_QUEUE",
+        prev_hash="GENESIS",
+        entry_hash=compute_audit_hash(
+            "GENESIS",
+            "AI Dispute Engine (PaySentinel)",
+            "PAUSED_FOR_HUMAN_REVIEW",
+            ControlTowerStatus.PENDING_REVIEW.value,
+            _sha256(letter_2),
+            "PAUSED_LOCAL_QUEUE",
+        ),
     )
 
     item_2 = ControlTowerItem(
@@ -223,6 +254,15 @@ def _build_initial_seed() -> list[ControlTowerItem]:
         reviewer_notes="'Know When to Fold' triggered. Courier lost package in transit. Recommending concession to protect $15 dispute penalty fee.",
         payload_hash=_sha256(letter_3),
         paypal_api_status="PAUSED_LOCAL_QUEUE",
+        prev_hash="GENESIS",
+        entry_hash=compute_audit_hash(
+            "GENESIS",
+            "AI Dispute Engine (PaySentinel)",
+            "PAUSED_FOR_HUMAN_REVIEW",
+            ControlTowerStatus.PENDING_REVIEW.value,
+            _sha256(letter_3),
+            "PAUSED_LOCAL_QUEUE",
+        ),
     )
 
     item_3 = ControlTowerItem(
@@ -260,16 +300,38 @@ def _build_initial_seed() -> list[ControlTowerItem]:
 
 
 class ControlTowerStore:
-    """In-memory persistent store for Human Control Tower queue items."""
+    """Persistent store for Human Control Tower queue items with SQLite and hash-chained audit logs."""
 
     def __init__(self) -> None:
         self._items: dict[str, ControlTowerItem] = {}
+        init_db()
         self.reset_store()
 
     def reset_store(self) -> None:
+        init_db()
         self._items.clear()
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM audit_log")
+            cursor.execute("DELETE FROM control_tower_items")
+            conn.commit()
+
         for item in _build_initial_seed():
             self._items[item.id] = item
+            # Persist initial audit log entry into SQLite
+            if item.audit_trail:
+                first = item.audit_trail[0]
+                append_audit_log_entry(
+                    item_id=item.id,
+                    actor=first.actor,
+                    action=first.action,
+                    previous_state=first.previous_state,
+                    new_state=first.new_state,
+                    reviewer_notes=first.reviewer_notes,
+                    payload_hash=first.payload_hash,
+                    paypal_api_status=first.paypal_api_status,
+                    timestamp=first.timestamp,
+                )
 
     def get_items(self, status: str | None = None) -> tuple[ControlTowerSummaryKPI, list[ControlTowerItem]]:
         all_list = list(self._items.values())
@@ -310,7 +372,7 @@ class ControlTowerStore:
     def get_item(self, item_id: str) -> ControlTowerItem | None:
         return self._items.get(item_id)
 
-    def approve_item(
+    async def approve_item(
         self,
         item_id: str,
         reviewer_name: str = "Merchant Admin",
@@ -319,6 +381,10 @@ class ControlTowerStore:
         item = self._items.get(item_id)
         if not item:
             raise KeyError(f"Control Tower item {item_id} not found.")
+
+        # Maker-Checker Constraint: Reviewer cannot be the creator
+        if reviewer_name and reviewer_name.strip().lower() == item.creator_name.strip().lower():
+            raise MakerCheckerError("Maker cannot be checker: reviewer must be different from item creator")
 
         # Enforce idempotency: cannot finalize an already resolved item
         if item.status != ControlTowerStatus.PENDING_REVIEW:
@@ -330,8 +396,31 @@ class ControlTowerStore:
         item.updated_at = now
 
         notes = reviewer_notes or f"Approved drafted defense for submission to PayPal Sandbox."
-        trace_id = f"PP-DSP-{item.dispute_id[-5:]}-SUBMITTED"
         payload_hash = _sha256(f"{item.drafted_defense_letter}|{now.isoformat()}|{reviewer_name}")
+
+        # Dispatch via DisputeProvider
+        provider = get_dispute_provider()
+        if isinstance(provider, SandboxDisputeProvider):
+            res = await provider.provide_evidence(item.dispute_id, item.drafted_defense_letter)
+            if res.get("status") == "SUCCESS":
+                paypal_api_status = f"PAYPAL_SANDBOX_SUBMITTED (HTTP {res.get('http_status', 200)})"
+            else:
+                paypal_api_status = f"PAYPAL_SANDBOX_ERROR ({res.get('http_status', 'FAIL')})"
+        else:
+            paypal_api_status = "SIMULATED_NOT_SENT"
+
+        # Append to hash-chained audit log
+        prev_hash, entry_hash = append_audit_log_entry(
+            item_id=item.id,
+            actor=reviewer_name,
+            action="APPROVE_AND_SUBMIT",
+            previous_state=prev_state,
+            new_state=item.status.value,
+            reviewer_notes=notes,
+            payload_hash=payload_hash,
+            paypal_api_status=paypal_api_status,
+            timestamp=now,
+        )
 
         entry = AuditTrailEntry(
             timestamp=now,
@@ -341,12 +430,14 @@ class ControlTowerStore:
             new_state=item.status.value,
             reviewer_notes=notes,
             payload_hash=payload_hash,
-            paypal_api_status="SIMULATED_NOT_SENT",
+            paypal_api_status=paypal_api_status,
+            prev_hash=prev_hash,
+            entry_hash=entry_hash,
         )
         item.audit_trail.append(entry)
         return item
 
-    def edit_item(
+    async def edit_item(
         self,
         item_id: str,
         updated_defense_letter: str,
@@ -357,6 +448,10 @@ class ControlTowerStore:
         item = self._items.get(item_id)
         if not item:
             raise KeyError(f"Control Tower item {item_id} not found.")
+
+        # Maker-Checker Constraint
+        if reviewer_name and reviewer_name.strip().lower() == item.creator_name.strip().lower():
+            raise MakerCheckerError("Maker cannot be checker: reviewer must be different from item creator")
 
         if item.status != ControlTowerStatus.PENDING_REVIEW:
             raise ValueError(f"Item {item_id} is already in state '{item.status.value}' and cannot be edited.")
@@ -377,8 +472,30 @@ class ControlTowerStore:
         item.status = ControlTowerStatus.EDITED_AND_SUBMITTED
         item.updated_at = now
 
-        trace_id = f"PP-DSP-{item.dispute_id[-5:]}-EDITED-SUBMITTED"
         payload_hash = _sha256(f"{updated_defense_letter}|{now.isoformat()}|{reviewer_name}")
+
+        # Dispatch via DisputeProvider
+        provider = get_dispute_provider()
+        if isinstance(provider, SandboxDisputeProvider):
+            res = await provider.provide_evidence(item.dispute_id, updated_defense_letter)
+            if res.get("status") == "SUCCESS":
+                paypal_api_status = f"PAYPAL_SANDBOX_SUBMITTED (HTTP {res.get('http_status', 200)})"
+            else:
+                paypal_api_status = f"PAYPAL_SANDBOX_ERROR ({res.get('http_status', 'FAIL')})"
+        else:
+            paypal_api_status = "SIMULATED_NOT_SENT"
+
+        prev_hash, entry_hash = append_audit_log_entry(
+            item_id=item.id,
+            actor=reviewer_name,
+            action="EDIT_AND_SUBMIT",
+            previous_state=prev_state,
+            new_state=item.status.value,
+            reviewer_notes=reviewer_notes,
+            payload_hash=payload_hash,
+            paypal_api_status=paypal_api_status,
+            timestamp=now,
+        )
 
         entry = AuditTrailEntry(
             timestamp=now,
@@ -388,12 +505,14 @@ class ControlTowerStore:
             new_state=item.status.value,
             reviewer_notes=reviewer_notes,
             payload_hash=payload_hash,
-            paypal_api_status="SIMULATED_NOT_SENT",
+            paypal_api_status=paypal_api_status,
+            prev_hash=prev_hash,
+            entry_hash=entry_hash,
         )
         item.audit_trail.append(entry)
         return item
 
-    def reject_item(
+    async def reject_item(
         self,
         item_id: str,
         resolution_strategy: str,
@@ -404,6 +523,10 @@ class ControlTowerStore:
         if not item:
             raise KeyError(f"Control Tower item {item_id} not found.")
 
+        # Maker-Checker Constraint
+        if reviewer_name and reviewer_name.strip().lower() == item.creator_name.strip().lower():
+            raise MakerCheckerError("Maker cannot be checker: reviewer must be different from item creator")
+
         if item.status != ControlTowerStatus.PENDING_REVIEW:
             raise ValueError(f"Item {item_id} is already in state '{item.status.value}' and cannot be rejected.")
 
@@ -413,8 +536,30 @@ class ControlTowerStore:
         item.status = ControlTowerStatus.REJECTED_CONCEDED
         item.updated_at = now
 
-        trace_id = f"PP-DSP-{item.dispute_id[-5:]}-CONCEDED-REFUNDED"
         payload_hash = _sha256(f"REJECTED_{resolution_strategy}|{now.isoformat()}|{reviewer_name}")
+
+        # Dispatch via DisputeProvider
+        provider = get_dispute_provider()
+        if isinstance(provider, SandboxDisputeProvider):
+            res = await provider.accept_claim(item.dispute_id, reviewer_notes)
+            if res.get("status") == "SUCCESS":
+                paypal_api_status = f"PAYPAL_SANDBOX_CONCEDED (HTTP {res.get('http_status', 200)})"
+            else:
+                paypal_api_status = f"PAYPAL_SANDBOX_ERROR ({res.get('http_status', 'FAIL')})"
+        else:
+            paypal_api_status = "SIMULATED_NOT_SENT"
+
+        prev_hash, entry_hash = append_audit_log_entry(
+            item_id=item.id,
+            actor=reviewer_name,
+            action="REJECT_AND_CONCEDE",
+            previous_state=prev_state,
+            new_state=item.status.value,
+            reviewer_notes=f"Strategy: {resolution_strategy}. Notes: {reviewer_notes}",
+            payload_hash=payload_hash,
+            paypal_api_status=paypal_api_status,
+            timestamp=now,
+        )
 
         entry = AuditTrailEntry(
             timestamp=now,
@@ -424,7 +569,9 @@ class ControlTowerStore:
             new_state=item.status.value,
             reviewer_notes=f"Strategy: {resolution_strategy}. Notes: {reviewer_notes}",
             payload_hash=payload_hash,
-            paypal_api_status="SIMULATED_NOT_SENT",
+            paypal_api_status=paypal_api_status,
+            prev_hash=prev_hash,
+            entry_hash=entry_hash,
         )
         item.audit_trail.append(entry)
         return item

@@ -11,6 +11,7 @@ from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query, status
 
+from app.db import verify_audit_hash_chain
 from app.models.schemas import (
     ControlTowerApproveRequest,
     ControlTowerEditRequest,
@@ -18,7 +19,7 @@ from app.models.schemas import (
     ControlTowerListResponse,
     ControlTowerRejectRequest,
 )
-from app.services.control_tower_service import control_tower_service
+from app.services.control_tower_service import MakerCheckerError, control_tower_service
 
 router = APIRouter(prefix="/api/control-tower", tags=["Human Control Tower"])
 
@@ -54,19 +55,37 @@ def get_control_tower_item(item_id: str):
     return item
 
 
+@router.get("/{item_id}/verify-audit-chain")
+def verify_item_audit_chain(item_id: str):
+    """Verifies cryptographic hash chain of the item's audit log."""
+    item = control_tower_service.get_item(item_id)
+    if not item:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Control Tower item '{item_id}' not found.",
+        )
+    valid, reason = verify_audit_hash_chain(item_id)
+    return {"item_id": item_id, "verified": valid, "details": reason}
+
+
 @router.post("/{item_id}/approve", response_model=ControlTowerItem)
-def approve_control_tower_item(item_id: str, body: ControlTowerApproveRequest):
+async def approve_control_tower_item(item_id: str, body: ControlTowerApproveRequest):
     """
     Approve an AI-drafted dispute defense and dispatch it directly to PayPal Sandbox.
     Enforces idempotency and records an immutable audit log entry.
     """
     try:
-        updated = control_tower_service.approve_item(
+        updated = await control_tower_service.approve_item(
             item_id=item_id,
             reviewer_name=body.reviewer_name,
             reviewer_notes=body.reviewer_notes,
         )
         return updated
+    except MakerCheckerError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
     except KeyError:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -80,13 +99,13 @@ def approve_control_tower_item(item_id: str, body: ControlTowerApproveRequest):
 
 
 @router.post("/{item_id}/edit", response_model=ControlTowerItem)
-def edit_control_tower_item(item_id: str, body: ControlTowerEditRequest):
+async def edit_control_tower_item(item_id: str, body: ControlTowerEditRequest):
     """
     Save operator revisions to the AI-drafted defense letter and submit to PayPal Sandbox.
     Enforces idempotency, records operator diff notes, and logs cryptographic payload hash.
     """
     try:
-        updated = control_tower_service.edit_item(
+        updated = await control_tower_service.edit_item(
             item_id=item_id,
             updated_defense_letter=body.updated_defense_letter,
             updated_action=body.updated_action,
@@ -94,6 +113,11 @@ def edit_control_tower_item(item_id: str, body: ControlTowerEditRequest):
             reviewer_notes=body.reviewer_notes,
         )
         return updated
+    except MakerCheckerError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
     except KeyError:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -107,19 +131,24 @@ def edit_control_tower_item(item_id: str, body: ControlTowerEditRequest):
 
 
 @router.post("/{item_id}/reject", response_model=ControlTowerItem)
-def reject_control_tower_item(item_id: str, body: ControlTowerRejectRequest):
+async def reject_control_tower_item(item_id: str, body: ControlTowerRejectRequest):
     """
     Reject the AI defense and execute a concession/refund via PayPal Sandbox
     to eliminate merchant dispute penalty fees ($15 saved).
     """
     try:
-        updated = control_tower_service.reject_item(
+        updated = await control_tower_service.reject_item(
             item_id=item_id,
             resolution_strategy=body.resolution_strategy,
             reviewer_name=body.reviewer_name,
             reviewer_notes=body.reviewer_notes,
         )
         return updated
+    except MakerCheckerError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
     except KeyError:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

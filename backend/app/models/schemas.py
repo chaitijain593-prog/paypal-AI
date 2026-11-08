@@ -361,6 +361,8 @@ class AuditTrailEntry(BaseModel):
     reviewer_notes: str
     payload_hash: str
     paypal_api_status: str
+    prev_hash: str | None = None
+    entry_hash: str | None = None
 
 
 class ControlTowerItem(BaseModel):
@@ -388,6 +390,7 @@ class ControlTowerItem(BaseModel):
     audit_trail: list[AuditTrailEntry] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
+    creator_name: str = "AI_DEFENSE_ENGINE"
     data_source: Literal["LIVE", "SIMULATED"] = "SIMULATED"
 
 

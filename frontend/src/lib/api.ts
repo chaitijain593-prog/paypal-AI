@@ -182,6 +182,8 @@ export interface ApiAuditTrailEntry {
   reviewer_notes: string;
   payload_hash: string;
   paypal_api_status: string;
+  prev_hash?: string;
+  entry_hash?: string;
 }
 
 export interface ApiControlTowerItem {
@@ -209,6 +211,7 @@ export interface ApiControlTowerItem {
   audit_trail: ApiAuditTrailEntry[];
   created_at: string;
   updated_at: string;
+  creator_name?: string;
   data_source?: 'LIVE' | 'SIMULATED';
 }
 
