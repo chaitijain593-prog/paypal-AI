@@ -6,6 +6,7 @@ Main entry point. Registers all routers, configures CORS, and exposes health che
 
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
 from fastapi import FastAPI
@@ -27,12 +28,26 @@ from app.routers import (
 
 settings = get_settings()
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Fail startup loudly if sandbox mode is active but webhook verification ID is missing."""
+    if settings.paypal_mode in ("sandbox", "live") and not settings.paypal_webhook_id:
+        raise RuntimeError(
+            "FATAL STARTUP CONFIGURATION ERROR: PAYPAL_MODE is configured as 'sandbox'/'live', "
+            "but PAYPAL_WEBHOOK_ID is empty. PayPal webhook signature verification cannot operate "
+            "without a configured webhook ID. Configure PAYPAL_WEBHOOK_ID or set PAYPAL_MODE=simulated."
+        )
+    yield
+
+
 app = FastAPI(
     title="PaySentinel AI",
     description="AI-powered PayPal dispute management, proof verification, and cash-flow intelligence.",
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
+    lifespan=lifespan,
 )
 
 # ── CORS ───────────────────────────────────────────────────────────────────

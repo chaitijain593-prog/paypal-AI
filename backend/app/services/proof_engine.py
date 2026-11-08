@@ -67,22 +67,50 @@ hash_children = hash_node  # RFC 6962 alias
 
 # ── 2. Ed25519 Merchant Key Management & Root Signing ───────────────────────
 
+_CACHED_MERCHANT_KEYS: tuple[ed25519.Ed25519PrivateKey, ed25519.Ed25519PublicKey] | None = None
+
+
+def _reset_key_cache() -> None:
+    """Reset cached in-memory keypair (used for testing)."""
+    global _CACHED_MERCHANT_KEYS
+    _CACHED_MERCHANT_KEYS = None
+
+
 def _ensure_merchant_keys() -> tuple[ed25519.Ed25519PrivateKey, ed25519.Ed25519PublicKey]:
-    """Loads or generates persistent local Ed25519 merchant keypair in backend/keys/."""
+    """
+    Loads or generates persistent local Ed25519 merchant keypair in backend/keys/.
+    Caches keypair in memory once to avoid disk I/O on every proof operation.
+    Fails loudly with RuntimeError on corrupted keys (never auto-regenerates).
+    """
+    global _CACHED_MERCHANT_KEYS
+    if _CACHED_MERCHANT_KEYS is not None:
+        return _CACHED_MERCHANT_KEYS
+
     KEY_DIR.mkdir(parents=True, exist_ok=True)
     priv_path = KEY_DIR / "merchant_ed25519.pem"
     pub_path = KEY_DIR / "merchant_ed25519_pub.pem"
 
-    if priv_path.exists() and pub_path.exists():
+    if priv_path.exists() or pub_path.exists():
+        if not (priv_path.exists() and pub_path.exists()):
+            raise RuntimeError(
+                f"FATAL: Incomplete Ed25519 keypair in {KEY_DIR}. One key file is missing. "
+                "Refusing to auto-regenerate and orphan previously signed Merkle proofs."
+            )
         try:
             with open(priv_path, "rb") as f:
                 priv_key = serialization.load_pem_private_key(f.read(), password=None)
             with open(pub_path, "rb") as f:
                 pub_key = serialization.load_pem_public_key(f.read())
             if isinstance(priv_key, ed25519.Ed25519PrivateKey) and isinstance(pub_key, ed25519.Ed25519PublicKey):
-                return priv_key, pub_key
+                _CACHED_MERCHANT_KEYS = (priv_key, pub_key)
+                return _CACHED_MERCHANT_KEYS
+            raise ValueError("Loaded keys are not a valid Ed25519 keypair.")
         except Exception as e:
-            logger.warning("Failed to load existing merchant key, regenerating: %s", e)
+            logger.error("Failed to load existing merchant key from %s: %s", KEY_DIR, e)
+            raise RuntimeError(
+                f"FATAL: Corrupted Ed25519 merchant key in {KEY_DIR}: {e}. "
+                "Auto-regeneration is strictly disabled to prevent silent key rollover."
+            ) from e
 
     priv_key = ed25519.Ed25519PrivateKey.generate()
     pub_key = priv_key.public_key()
@@ -102,7 +130,8 @@ def _ensure_merchant_keys() -> tuple[ed25519.Ed25519PrivateKey, ed25519.Ed25519P
     with open(pub_path, "wb") as f:
         f.write(pub_pem)
 
-    return priv_key, pub_key
+    _CACHED_MERCHANT_KEYS = (priv_key, pub_key)
+    return _CACHED_MERCHANT_KEYS
 
 
 def get_merchant_public_key_hex() -> str:

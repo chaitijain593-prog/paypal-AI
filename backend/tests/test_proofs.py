@@ -147,3 +147,47 @@ def test_dynamic_proof_generation_and_verification():
     assert data_ver["match"] is True
     assert data_ver["status"] == "VERIFIED"
     assert data_ver["signature_verified"] is True
+
+
+def test_ed25519_key_caching_and_no_auto_regeneration(tmp_path, monkeypatch):
+    """Verify Ed25519 keypair is cached in memory and fails loudly on corruption."""
+    import pytest
+    from app.services.proof_engine import _ensure_merchant_keys, _reset_key_cache
+
+    _reset_key_cache()
+    k1 = _ensure_merchant_keys()
+    k2 = _ensure_merchant_keys()
+    # Cache returns the exact same object reference
+    assert k1[0] is k2[0]
+
+    # Test corrupted key file raises RuntimeError
+    fake_key_dir = tmp_path / "keys"
+    fake_key_dir.mkdir()
+    (fake_key_dir / "merchant_ed25519.pem").write_text("CORRUPTED_GARBAGE_BYTES")
+    (fake_key_dir / "merchant_ed25519_pub.pem").write_text("CORRUPTED_GARBAGE_BYTES")
+
+    monkeypatch.setattr("app.services.proof_engine.KEY_DIR", fake_key_dir)
+    _reset_key_cache()
+
+    with pytest.raises(RuntimeError, match="Corrupted Ed25519 merchant key"):
+        _ensure_merchant_keys()
+
+    _reset_key_cache()
+
+
+def test_startup_fails_in_sandbox_without_webhook_id(monkeypatch):
+    """Verify startup fails loudly in sandbox mode when PAYPAL_WEBHOOK_ID is empty."""
+    import asyncio
+    import pytest
+    from app.core.config import get_settings
+    from app.main import lifespan, app
+
+    settings = get_settings()
+    monkeypatch.setattr(settings, "paypal_mode", "sandbox")
+    monkeypatch.setattr(settings, "paypal_webhook_id", "")
+
+    with pytest.raises(RuntimeError, match="PAYPAL_WEBHOOK_ID is empty"):
+        async def run_lifespan():
+            async with lifespan(app):
+                pass
+        asyncio.run(run_lifespan())

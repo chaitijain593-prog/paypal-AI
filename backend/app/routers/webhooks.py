@@ -70,7 +70,12 @@ async def receive_paypal_webhook(
                 detail="Missing PayPal transmission signature headers in sandbox mode.",
             )
 
-        webhook_id = settings.paypal_webhook_id or "WEBHOOK_VERIFY_ID"
+        if not settings.paypal_webhook_id:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="PAYPAL_WEBHOOK_ID is not configured in sandbox mode.",
+            )
+        webhook_id = settings.paypal_webhook_id
         verified = await paypal_client.verify_webhook_signature(
             auth_algo=paypal_auth_algo,
             cert_url=paypal_cert_url,
