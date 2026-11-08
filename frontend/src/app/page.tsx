@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import dynamic from 'next/dynamic';
 import Link from 'next/link';
 
 import { useRouter } from 'next/navigation';
@@ -46,34 +45,12 @@ import {
 
 import CSSPhoneHero from '@/components/CSSPhoneHero';
 
-// Lazy-load the 3D Canvas (ssr: false) with CSS phone as fallback
-const Hero3DCanvas = dynamic(() => import('@/components/Hero3DCanvas'), {
-  ssr: false,
-  loading: () => <CSSPhoneHero />,
-});
-
 export default function StartingPage() {
-
   const router = useRouter();
-
   const shouldReduceMotion = useReducedMotion();
-
   const [isMobile, setIsMobile] = useState(false);
-
-  const [presetAngle, setPresetAngle] = useState<'isometric' | 'floating' | 'flat'>('isometric');
-
-  const [renderEngine, setRenderEngine] = useState<'css' | 'webgl'>('webgl');
-
-  const [isExploded, setIsExploded] = useState(false);
-
-  const [triggerSpin, setTriggerSpin] = useState(0);
-
-  const [triggerPulse, setTriggerPulse] = useState(0);
-
   const containerRef = useRef<HTMLDivElement>(null);
-
   const progressRef = useRef(0);
-
   const [scrollProgress, setScrollProgress] = useState(0);
 
   const storyboardProgress = useMotionValue(0);
@@ -592,116 +569,10 @@ export default function StartingPage() {
 
                 >
 
-                  {/* 3D Angle Preset Toggle (Cleanly docked in top-right corner of right column) */}
-
-                                    {/* Cinematic 3D Action Dock (Reels-grade controls) */}
-                  <motion.div
-                    style={{ opacity: leftColOpacity }}
-                    className="absolute top-2 right-2 sm:right-4 z-30 flex flex-wrap items-center gap-1.5 p-1.5 rounded-2xl bg-[#0B132B]/95 border border-cyan-500/30 backdrop-blur-xl shadow-2xl pointer-events-auto ring-1 ring-cyan-500/20"
-                  >
-                    {/* Angle Presets */}
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => setPresetAngle('isometric')}
-                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all duration-300 ${
-                          presetAngle === 'isometric'
-                            ? 'bg-[#0070BA] text-white shadow-sm shadow-blue-500/30'
-                            : 'text-slate-400 hover:text-white'
-                        }`}
-                      >
-                        Isometric
-                      </button>
-                      <button
-                        onClick={() => setPresetAngle('floating')}
-                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all duration-300 ${
-                          presetAngle === 'floating'
-                            ? 'bg-[#0070BA] text-white shadow-sm shadow-blue-500/30'
-                            : 'text-slate-400 hover:text-white'
-                        }`}
-                      >
-                        Floating
-                      </button>
-                    </div>
-
-                    <div className="w-px h-4 bg-white/15 mx-0.5" />
-
-                    {/* Crazy Interactive 3D Reels Actions */}
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => setIsExploded(!isExploded)}
-                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all duration-300 flex items-center gap-1 ${
-                          isExploded
-                            ? 'bg-gradient-to-r from-amber-500 to-rose-500 text-white shadow-lg shadow-rose-500/30 animate-pulse'
-                            : 'bg-white/[0.06] text-amber-300 hover:bg-white/[0.12] border border-amber-500/30'
-                        }`}
-                        title="Explode 3D layers apart to see silicon crypto core"
-                      >
-                        <span>💥</span>
-                        <span>{isExploded ? 'Collapse' : 'Explode 3D'}</span>
-                      </button>
-
-                      <button
-                        onClick={() => setTriggerSpin((prev) => prev + 1)}
-                        className="px-2 py-1 rounded-lg text-xs font-bold text-cyan-300 bg-white/[0.06] hover:bg-cyan-500/20 border border-cyan-500/30 transition-all flex items-center gap-1 cursor-pointer"
-                        title="360 degree showcase spin"
-                      >
-                        <span>⚡</span>
-                        <span>Spin 360°</span>
-                      </button>
-
-                      <button
-                        onClick={() => setTriggerPulse((prev) => prev + 1)}
-                        className="px-2 py-1 rounded-lg text-xs font-bold text-emerald-300 bg-white/[0.06] hover:bg-emerald-500/20 border border-emerald-500/30 transition-all flex items-center gap-1 cursor-pointer"
-                        title="Firewall holographic shockwave pulse"
-                      >
-                        <span>🛡️</span>
-                        <span>Shockwave</span>
-                      </button>
-                    </div>
-
-                    <div className="w-px h-4 bg-white/15 mx-0.5" />
-
-                    {/* Engine Switcher */}
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => setRenderEngine('webgl')}
-                        className={`px-2 py-1 rounded-lg text-[11px] font-mono font-bold transition-all ${
-                          renderEngine === 'webgl'
-                            ? 'bg-cyan-600 text-white shadow-sm shadow-cyan-500/30'
-                            : 'text-slate-400 hover:text-white'
-                        }`}
-                      >
-                        WebGL 3D
-                      </button>
-                      <button
-                        onClick={() => setRenderEngine('css')}
-                        className={`px-2 py-1 rounded-lg text-[11px] font-mono font-bold transition-all ${
-                          renderEngine === 'css'
-                            ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-500/30'
-                            : 'text-slate-400 hover:text-white'
-                        }`}
-                      >
-                        CSS
-                      </button>
-                    </div>
-                  </motion.div>
-
-                  {/* The 3D Fiber Scene */}
-
-                  <div className="w-full h-full relative">
-
-                    {renderEngine === 'webgl' ? (
-
-                      <Hero3DCanvas progressRef={progressRef} presetAngle={presetAngle} isExploded={isExploded} triggerSpin={triggerSpin} triggerPulse={triggerPulse} />
-
-                    ) : (
-
-                      <CSSPhoneHero presetAngle={presetAngle} triggerSpin={triggerSpin} isExploded={isExploded} />
-
-                    )}
-
+                  {/* Unified Hero Phone Display */}
+                  <div className="w-full h-full relative flex items-center justify-center">
+                    <CSSPhoneHero presetAngle="isometric" />
                   </div>
-
                 </motion.div>
 
               </div>

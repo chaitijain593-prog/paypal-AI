@@ -2,15 +2,21 @@
 
 from __future__ import annotations
 
+import json
+import logging
 import re
 from typing import Any, Literal
 
+import httpx
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from app.core.config import get_settings
 from app.models.schemas import TransactionStatus
 from app.services.mock_data import get_dispute_by_id, get_disputes, get_transaction_by_id, get_transactions
 
+logger = logging.getLogger("transactions")
+settings = get_settings()
 router = APIRouter(prefix="/api/transactions", tags=["Transactions"])
 
 
@@ -103,7 +109,7 @@ def natural_language_query(body: NLQueryRequest):
         desc_parts.append(f"keyword '{filters['keyword']}'")
 
     if desc_parts:
-        explanation = f"AI translated intent to: {', '.join(desc_parts)}. Found {len(matched)} matching transaction(s)."
+        explanation = f"Deterministic parsing: {', '.join(desc_parts)}. Found {len(matched)} matching transaction(s)."
     else:
         explanation = f"Matched {len(matched)} transaction(s) across all records."
 
@@ -113,6 +119,7 @@ def natural_language_query(body: NLQueryRequest):
         matched_count=len(matched),
         matching_ids=[t.id for t in matched],
         ai_explanation=explanation,
+        data_source="SIMULATED",
     )
 
 
