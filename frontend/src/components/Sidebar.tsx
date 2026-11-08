@@ -4,6 +4,8 @@ import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
+  ShieldAlert,
+  Bot,
   LayoutDashboard,
   Swords,
   ArrowLeftRight,
@@ -20,8 +22,17 @@ interface SidebarProps {
   onCloseMobile?: () => void;
 }
 
-const navItems = [
+interface NavItem {
+  href: string;
+  label: string;
+  icon: any;
+  badge?: string;
+}
+
+const navItems: NavItem[] = [
   { href: '/dashboard', label: 'Command Center', icon: LayoutDashboard },
+  { href: '/approval-queue', label: 'Control Tower', icon: ShieldAlert, badge: '3' },
+  { href: '/agent-commerce', label: 'Agent Commerce', icon: Bot, badge: 'Loop' },
   { href: '/arena', label: 'Dispute Arena', icon: Swords },
   { href: '/transactions', label: 'Transactions Ledger', icon: ArrowLeftRight },
   { href: '/proofs', label: 'Proof Vault', icon: ShieldCheck },
@@ -102,6 +113,11 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarPr
                   <Icon className="w-4 h-4" />
                 </div>
                 <span>{item.label}</span>
+                {item.badge && (
+                  <span className="ml-auto px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                    {item.badge}
+                  </span>
+                )}
               </Link>
             );
           })}

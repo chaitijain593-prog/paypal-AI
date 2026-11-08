@@ -21,6 +21,8 @@ from app.routers import (
     proofs,
     transactions,
     webhooks,
+    control_tower,
+    agent_commerce,
 )
 
 settings = get_settings()
@@ -51,10 +53,13 @@ app.include_router(proofs.router)
 app.include_router(cashflow.router)
 app.include_router(webhooks.router)
 app.include_router(paypal.router)
+app.include_router(control_tower.router)
+app.include_router(agent_commerce.router)
 
 
 
 # ── Health Check ───────────────────────────────────────────────────────────
+@app.get("/health", tags=["Health"])
 @app.get("/api/health", tags=["Health"])
 def health_check():
     return {

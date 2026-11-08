@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -25,11 +24,6 @@ import {
 } from 'lucide-react';
 import CSSPhoneHero from '@/components/CSSPhoneHero';
 
-// Lazy-load the 3D Canvas (ssr: false) with CSS phone as fallback
-const Hero3DCanvas = dynamic(() => import('@/components/Hero3DCanvas'), {
-  ssr: false,
-  loading: () => <CSSPhoneHero />,
-});
 
 export default function StartingPage() {
   const router = useRouter();

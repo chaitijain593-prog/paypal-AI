@@ -261,3 +261,135 @@ class WebhookEvent(BaseModel):
     created_at: datetime
     status: str = "PROCESSED"
     payload_preview: dict[str, Any]
+
+
+# ── Human Control Tower & Approval Queue Models (Feature 4) ───────────────
+
+class ControlTowerStatus(str, Enum):
+    PENDING_REVIEW = "PENDING_REVIEW"
+    APPROVED_AND_SUBMITTED = "APPROVED_AND_SUBMITTED"
+    EDITED_AND_SUBMITTED = "EDITED_AND_SUBMITTED"
+    REJECTED_CONCEDED = "REJECTED_CONCEDED"
+
+
+class AIRecommendedAction(str, Enum):
+    SUBMIT_EVIDENCE = "SUBMIT_EVIDENCE"
+    ACCEPT_CLAIM_AND_REFUND = "ACCEPT_CLAIM_AND_REFUND"
+    ESCALATE_MANUAL_INQUIRY = "ESCALATE_MANUAL_INQUIRY"
+
+
+class ProofClaim(BaseModel):
+    claim_id: str
+    statement_text: str
+    source_type: str  # CARRIER_TRACKING, ORDER_LOG, BUYER_CHAT, FIRA_INVOICE
+    source_record_id: str
+    sha256_hash: str
+    verified: bool = True
+
+
+class AuditTrailEntry(BaseModel):
+    timestamp: datetime
+    actor: str
+    action: str
+    previous_state: str
+    new_state: str
+    reviewer_notes: str
+    payload_hash: str
+    paypal_api_status: str
+
+
+class ControlTowerItem(BaseModel):
+    id: str = Field(..., description="Unique Queue ID, e.g. CT-9021")
+    dispute_id: str = Field(..., description="PayPal Sandbox Dispute ID, e.g. PP-D-88412")
+    transaction_id: str = Field(..., description="Associated PayPal Order/Capture ID")
+    buyer_name: str
+    buyer_email: str
+    dispute_reason: str
+    item_name: str
+    amount: float = Field(..., gt=0.0)
+    currency: str = "USD"
+    dispute_fee_at_risk: float = 15.00
+    sla_deadline: datetime
+    escalation_triggers: list[str]
+    ai_confidence_score: float = Field(..., ge=0.0, le=1.0)
+    ai_recommended_action: AIRecommendedAction
+    ai_rationale: str
+    drafted_defense_letter: str
+    proof_claims: list[ProofClaim] = Field(default_factory=list)
+    buyer_raw_message: str
+    firewall_injection_flagged: bool = False
+    firewall_details: str | None = None
+    status: ControlTowerStatus = ControlTowerStatus.PENDING_REVIEW
+    audit_trail: list[AuditTrailEntry] = Field(default_factory=list)
+    created_at: datetime
+    updated_at: datetime
+
+
+class ControlTowerApproveRequest(BaseModel):
+    reviewer_name: str = "Merchant Admin"
+    reviewer_notes: str | None = None
+
+
+class ControlTowerEditRequest(BaseModel):
+    updated_defense_letter: str = Field(..., min_length=1)
+    updated_action: str | None = None
+    reviewer_name: str = "Merchant Admin"
+    reviewer_notes: str = Field(..., min_length=1)
+
+
+class ControlTowerRejectRequest(BaseModel):
+    resolution_strategy: str = "CONCEDE_AND_REFUND"  # CONCEDE_AND_REFUND | HOLD_FOR_MANUAL_FILING
+    reviewer_name: str = "Merchant Admin"
+    reviewer_notes: str = Field(..., min_length=1)
+
+
+class ControlTowerSummaryKPI(BaseModel):
+    total_amount_at_risk: float
+    pending_count: int
+    urgent_24h_count: int
+    fees_saved: float
+    resolved_count: int
+
+
+class ControlTowerListResponse(BaseModel):
+    kpis: ControlTowerSummaryKPI
+    count: int
+    items: list[ControlTowerItem]
+
+
+# ── Agent-vs-Agent Commerce Loop Models (Feature 9) ───────────────────────
+
+class AgentCommerceActor(str, Enum):
+    BUYER_AGENT = "BUYER_AGENT"
+    MERCHANT_AGENT = "MERCHANT_AGENT"
+    PAYPAL_SANDBOX = "PAYPAL_SANDBOX"
+
+
+class AgentCommerceStep(BaseModel):
+    step_number: int
+    actor: AgentCommerceActor
+    action: str
+    description: str
+    timestamp: datetime
+    status: str = "SUCCESS"  # SUCCESS | WAITING | INTERCEPTED
+    payload_preview: dict[str, Any] = Field(default_factory=dict)
+
+
+class AgentCommerceSession(BaseModel):
+    session_id: str
+    product_name: str
+    amount: float
+    currency: str = "USD"
+    buyer_spend_cap: float = 500.00
+    status: str = "COMPLETED"  # IN_PROGRESS | COMPLETED | ESCALATED
+    order_id: str
+    dispute_id: str | None = None
+    steps: list[AgentCommerceStep] = Field(default_factory=list)
+    created_at: datetime
+
+
+class AgentCommerceRunRequest(BaseModel):
+    product_name: str = "Keychron Q1 Pro Mechanical Keyboard"
+    amount: float = 249.99
+    simulate_dispute: bool = True
+    inject_adversarial: bool = False

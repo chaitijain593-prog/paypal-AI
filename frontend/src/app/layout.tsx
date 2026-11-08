@@ -1,9 +1,6 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import "./globals.css";
 import Shell from "@/components/Shell";
-
-const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "PaySentinel AI — Verifiable Dispute Firewall & Agentic Commerce",
@@ -18,7 +15,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="dark h-full">
-      <body className={`${inter.className} min-h-full bg-[#07090E] antialiased`}>
+      <body className="font-sans min-h-full bg-[#07090E] antialiased">
         <Shell>{children}</Shell>
       </body>
     </html>
