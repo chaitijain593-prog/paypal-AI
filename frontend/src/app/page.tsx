@@ -336,33 +336,33 @@ export default function StartingPage() {
 
                 <div>
 
-                  <div className="text-3xl font-extrabold text-white tabular-nums">60<span className="text-[#3B9EFF]">+</span></div>
+                  <div className="text-2xl sm:text-3xl font-extrabold text-white">SHA-256</div>
 
-                  <p className="text-xs text-slate-300 font-semibold mt-1">Mobile Screen</p>
-
-                </div>
-
-                <div>
-
-                  <div className="text-3xl font-extrabold text-white tabular-nums">100<span className="text-[#3B9EFF]">+</span></div>
-
-                  <p className="text-xs text-slate-300 font-semibold mt-1">Components</p>
+                  <p className="text-xs text-slate-300 font-semibold mt-1">Merkle Proofs</p>
 
                 </div>
 
                 <div>
 
-                  <div className="text-3xl font-extrabold text-white tabular-nums">42<span className="text-xs font-semibold text-slate-400 ml-1">sec</span></div>
+                  <div className="text-2xl sm:text-3xl font-extrabold text-white">HITL</div>
 
-                  <p className="text-xs text-slate-300 font-semibold mt-1">CE 3.0 Rebuttal</p>
+                  <p className="text-xs text-slate-300 font-semibold mt-1">Control Tower</p>
 
                 </div>
 
                 <div>
 
-                  <div className="text-3xl font-extrabold text-emerald-400 tabular-nums">$0</div>
+                  <div className="text-2xl sm:text-3xl font-extrabold text-white">Firewall</div>
 
-                  <p className="text-xs text-slate-300 font-semibold mt-1">Dispute Loss</p>
+                  <p className="text-xs text-slate-300 font-semibold mt-1">Pattern Isolation</p>
+
+                </div>
+
+                <div>
+
+                  <div className="text-2xl sm:text-3xl font-extrabold text-emerald-400">Sandbox</div>
+
+                  <p className="text-xs text-slate-300 font-semibold mt-1">PayPal Verified</p>
 
                 </div>
 
@@ -474,63 +474,57 @@ export default function StartingPage() {
 
                     <div>
 
-                      <div className="text-3xl font-extrabold text-white tracking-tight flex items-baseline tabular-nums">
+                      <div className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight flex items-baseline">
 
-                        <span>60</span>
-
-                        <span className="text-[#3B9EFF] font-bold">+</span>
+                        <span>SHA-256</span>
 
                       </div>
 
-                      <p className="text-xs text-slate-300 font-semibold mt-1">Mobile Screen</p>
+                      <p className="text-xs text-slate-300 font-semibold mt-1">Merkle Proofs</p>
 
-                      <p className="text-[11px] text-slate-500">Wallet, dispute, audit</p>
+                      <p className="text-[11px] text-slate-500">Tamper-evident evidence</p>
 
                     </div>
 
                     <div>
 
-                      <div className="text-3xl font-extrabold text-white tracking-tight flex items-baseline tabular-nums">
+                      <div className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight flex items-baseline">
 
-                        <span>100</span>
-
-                        <span className="text-[#3B9EFF] font-bold">+</span>
+                        <span>HITL</span>
 
                       </div>
 
-                      <p className="text-xs text-slate-300 font-semibold mt-1">Components</p>
+                      <p className="text-xs text-slate-300 font-semibold mt-1">Control Tower</p>
 
-                      <p className="text-[11px] text-slate-500">Cards, receipts, proofs</p>
+                      <p className="text-[11px] text-slate-500">Human sign-off ceiling</p>
 
                     </div>
 
                     <div>
 
-                      <div className="text-3xl font-extrabold text-white tracking-tight flex items-baseline tabular-nums">
+                      <div className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight flex items-baseline">
 
-                        <span>42</span>
-
-                        <span className="text-xs font-semibold text-slate-400 ml-1">sec</span>
+                        <span>Firewall</span>
 
                       </div>
 
-                      <p className="text-xs text-slate-300 font-semibold mt-1">CE 3.0 Rebuttal</p>
+                      <p className="text-xs text-slate-300 font-semibold mt-1">Pattern Isolation</p>
 
-                      <p className="text-[11px] text-slate-500">vs 4 business days</p>
+                      <p className="text-[11px] text-slate-500">Adversarial defense</p>
 
                     </div>
 
                     <div>
 
-                      <div className="text-3xl font-extrabold text-emerald-400 tracking-tight flex items-baseline tabular-nums">
+                      <div className="text-2xl sm:text-3xl font-extrabold text-emerald-400 tracking-tight flex items-baseline">
 
-                        <span>$0</span>
+                        <span>Sandbox</span>
 
                       </div>
 
-                      <p className="text-xs text-slate-300 font-semibold mt-1">Dispute Loss</p>
+                      <p className="text-xs text-slate-300 font-semibold mt-1">PayPal Verified</p>
 
-                      <p className="text-[11px] text-slate-500">Fee waiver unlocked</p>
+                      <p className="text-[11px] text-slate-500">Live API integration</p>
 
                     </div>
 

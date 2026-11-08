@@ -108,7 +108,7 @@ def _build_initial_seed() -> list[ControlTowerItem]:
         ],
         ai_confidence_score=0.94,
         ai_recommended_action=AIRecommendedAction.SUBMIT_EVIDENCE,
-        ai_rationale="Strong FedEx delivery confirmation with direct buyer signature on file and 99.1% GPS geofence match. Irrefutable proof under Visa CE 3.0 / PayPal Seller Protection. Held strictly because transaction value exceeds the $500 autonomous execution threshold.",
+        ai_rationale="Strong FedEx delivery confirmation with direct buyer signature on file and verified GPS match under PayPal Seller Protection terms. Held strictly because transaction value exceeds the $500 autonomous execution threshold.",
         drafted_defense_letter=letter_1,
         proof_claims=claims_1,
         buyer_raw_message="I ordered the Apple Studio Display and FedEx marked it delivered yesterday morning, but no package was left at my front door or mailroom. I checked with building security and they have no record. Please issue an immediate full refund of $1,250.",
@@ -341,7 +341,7 @@ class ControlTowerStore:
             new_state=item.status.value,
             reviewer_notes=notes,
             payload_hash=payload_hash,
-            paypal_api_status=f"PAYPAL_SANDBOX_200_OK [Trace: {trace_id}]",
+            paypal_api_status="SIMULATED_NOT_SENT",
         )
         item.audit_trail.append(entry)
         return item
@@ -388,7 +388,7 @@ class ControlTowerStore:
             new_state=item.status.value,
             reviewer_notes=reviewer_notes,
             payload_hash=payload_hash,
-            paypal_api_status=f"PAYPAL_SANDBOX_200_OK [Trace: {trace_id}]",
+            paypal_api_status="SIMULATED_NOT_SENT",
         )
         item.audit_trail.append(entry)
         return item
@@ -424,7 +424,7 @@ class ControlTowerStore:
             new_state=item.status.value,
             reviewer_notes=f"Strategy: {resolution_strategy}. Notes: {reviewer_notes}",
             payload_hash=payload_hash,
-            paypal_api_status=f"PAYPAL_SANDBOX_200_CONCEDED [Trace: {trace_id}]",
+            paypal_api_status="SIMULATED_NOT_SENT",
         )
         item.audit_trail.append(entry)
         return item

@@ -25,6 +25,7 @@ export interface ApiTransaction {
   payment_method: string;
   has_dispute: boolean;
   dispute_id?: string | null;
+  data_source?: 'LIVE' | 'SIMULATED';
 }
 
 export interface ApiArenaMove {
@@ -48,6 +49,7 @@ export interface ApiArenaSimulation {
   total_rounds: number;
   created_at: string;
   duration_ms: number;
+  data_source?: 'LIVE' | 'SIMULATED';
 }
 
 export interface ApiCashFlowEntry {
@@ -71,6 +73,7 @@ export interface ApiCashFlowRunway {
   projected_cash_flow: ApiCashFlowEntry[];
   risk_level: string;
   recommendation: string;
+  data_source?: 'LIVE' | 'SIMULATED';
 }
 
 export interface ApiThreatMatch {
@@ -97,6 +100,7 @@ export interface ApiLiveAttackResult {
   evidence_matches: { type: string; detail: string; verified: boolean }[];
   processing_time_ms: number;
   created_at: string;
+  data_source?: 'LIVE' | 'SIMULATED';
 }
 
 export interface ApiGenerateProofRequest {
@@ -123,6 +127,7 @@ export interface ApiGenerateProofResponse {
   status: string;
   created_at: string;
   proof_record: any;
+  data_source?: 'LIVE' | 'SIMULATED';
 }
 
 
@@ -137,6 +142,7 @@ export interface ApiProofRecord {
   created_at: string;
   verified_at: string | null;
   file_size_bytes: number;
+  data_source?: 'LIVE' | 'SIMULATED';
 }
 
 export interface ApiProofVerifyResult {
@@ -154,6 +160,7 @@ export interface ApiProofVerifyResult {
     actor: string;
     hash: string;
   }>;
+  data_source?: 'LIVE' | 'SIMULATED';
 }
 
 
@@ -202,6 +209,7 @@ export interface ApiControlTowerItem {
   audit_trail: ApiAuditTrailEntry[];
   created_at: string;
   updated_at: string;
+  data_source?: 'LIVE' | 'SIMULATED';
 }
 
 export interface ApiControlTowerSummaryKPI {
@@ -216,6 +224,7 @@ export interface ApiControlTowerListResponse {
   kpis: ApiControlTowerSummaryKPI;
   count: number;
   items: ApiControlTowerItem[];
+  data_source?: 'LIVE' | 'SIMULATED';
 }
 
 
@@ -227,6 +236,7 @@ export interface ApiAgentCommerceStep {
   timestamp: string;
   status: 'SUCCESS' | 'WAITING' | 'INTERCEPTED';
   payload_preview: Record<string, any>;
+  data_source?: 'LIVE' | 'SIMULATED';
 }
 
 export interface ApiAgentCommerceSession {
@@ -240,6 +250,7 @@ export interface ApiAgentCommerceSession {
   dispute_id?: string | null;
   steps: ApiAgentCommerceStep[];
   created_at: string;
+  data_source?: 'LIVE' | 'SIMULATED';
 }
 
 export interface ApiDashboardStats {
@@ -258,6 +269,7 @@ export interface ApiDashboardStats {
   runway_months: number;
   monthly_revenue: number;
   monthly_expenses: number;
+  data_source?: 'LIVE' | 'SIMULATED';
   recent_alerts: Array<{
     type: string;
     severity: string;

@@ -12,7 +12,7 @@ router = APIRouter(prefix="/api/disputes", tags=["Disputes"])
 def list_disputes():
     """Return all mock disputes with evidence and timelines."""
     disputes = get_disputes()
-    return {"count": len(disputes), "disputes": disputes}
+    return {"count": len(disputes), "data_source": "SIMULATED", "disputes": disputes}
 
 
 @router.get("/{dispute_id}")

@@ -13,7 +13,7 @@ router = APIRouter(prefix="/api/arena", tags=["Dispute Arena"])
 def list_simulations():
     """Return all past arena simulation results."""
     sims = get_arena_simulations()
-    return {"count": len(sims), "simulations": sims}
+    return {"count": len(sims), "data_source": "SIMULATED", "simulations": sims}
 
 
 @router.post("/run")

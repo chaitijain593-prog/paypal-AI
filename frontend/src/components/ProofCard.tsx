@@ -235,7 +235,7 @@ export default function ProofCard() {
                 Visa CE 3.0 Compliant
               </span>
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-300 font-mono flex items-center gap-1">
-                <Lock className="w-3 h-3 text-cyan-400" /> Zero-Knowledge Mode
+                <Lock className="w-3 h-3 text-cyan-400" /> Salted Commitment Mode
               </span>
             </p>
             <p className="text-[11px] font-mono text-slate-400 truncate max-w-lg">
@@ -443,9 +443,9 @@ export default function ProofCard() {
                     <GitBranch className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className="text-base font-bold text-white">Generate ZK Merkle Proof</h3>
+                    <h3 className="text-base font-bold text-white">Generate Merkle Proof</h3>
                     <p className="text-xs text-slate-400">
-                      Constructs authentic SHA-256 binary tree leaves with Zero-Knowledge privacy protection.
+                      Constructs SHA-256 binary tree leaves with salted privacy commitments.
                     </p>
                   </div>
                 </div>
@@ -527,14 +527,14 @@ export default function ProofCard() {
                   />
                 </div>
 
-                {/* Zero-Knowledge Privacy Mode Toggle */}
+                {/* Salted Privacy Mode Toggle */}
                 <div className="p-3.5 rounded-xl bg-cyan-950/30 border border-cyan-500/30 flex items-start justify-between gap-3">
                   <div className="space-y-1">
                     <div className="flex items-center gap-1.5 text-xs font-bold text-cyan-300">
-                      <Lock className="w-3.5 h-3.5" /> Zero-Knowledge Privacy Predicates (Visa CE 3.0)
+                      <Lock className="w-3.5 h-3.5" /> Salted Privacy Commitments
                     </div>
                     <p className="text-[11px] text-slate-400 leading-relaxed">
-                      Withholds raw GPS and customer signature entropy from public ledger. Uses cryptographic mathematical commitments to prove delivery location within 15m radius (GDPR & CCPA Compliant).
+                      Withholds raw GPS and customer signature from public ledger. Uses cryptographic salted commitments to verify delivery location within 15m radius.
                     </p>
                   </div>
                   <input

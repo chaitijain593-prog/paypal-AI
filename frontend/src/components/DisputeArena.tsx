@@ -71,7 +71,7 @@ const defaultChatLog: ChatMessage[] = [
   {
     id: 6,
     sender: 'defender',
-    message: '⚠️ PROMPT INJECTION DETECTED. Message quarantined. Untrusted input firewall engaged. Threat vector: instruction override attempt. Logging incident #SEC-0451.',
+    message: '⚠️ PROMPT INJECTION DETECTED. Message quarantined. Untrusted input firewall engaged. Threat vector: instruction override attempt. Logging security event.',
     timestamp: '00:10',
     tag: '🛡️ Blocked',
   },

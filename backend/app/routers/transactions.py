@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -24,13 +24,14 @@ class NLQueryResponse(BaseModel):
     matched_count: int
     matching_ids: list[str]
     ai_explanation: str
+    data_source: Literal["LIVE", "SIMULATED"] = "SIMULATED"
 
 
 @router.get("")
 def list_transactions():
     """Return all mock transactions."""
     txns = get_transactions()
-    return {"count": len(txns), "transactions": txns}
+    return {"count": len(txns), "data_source": "SIMULATED", "transactions": txns}
 
 
 @router.post("/nl-query", response_model=NLQueryResponse)

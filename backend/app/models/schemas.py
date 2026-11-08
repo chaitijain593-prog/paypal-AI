@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -90,6 +90,7 @@ class Transaction(BaseModel):
     updated_at: datetime
     payment_method: str = "PayPal Balance"
     risk_score: float = Field(ge=0.0, le=100.0)
+    data_source: Literal["LIVE", "SIMULATED"] = "SIMULATED"
 
 
 # ── Dispute Models ─────────────────────────────────────────────────────────
@@ -128,6 +129,7 @@ class Dispute(BaseModel):
     respond_by: datetime
     ai_recommendation: str = ""
     win_probability: float = Field(ge=0.0, le=1.0, default=0.0)
+    data_source: Literal["LIVE", "SIMULATED"] = "SIMULATED"
 
 
 class DisputeResponse(BaseModel):
@@ -143,6 +145,7 @@ class DisputeResponseResult(BaseModel):
     recommended_action: str
     confidence: float
     response_submitted: bool
+    data_source: Literal["LIVE", "SIMULATED"] = "SIMULATED"
 
 
 # ── Arena Models ───────────────────────────────────────────────────────────
@@ -168,6 +171,7 @@ class ArenaSimulation(BaseModel):
     total_rounds: int
     created_at: datetime
     duration_ms: int
+    data_source: Literal["LIVE", "SIMULATED"] = "SIMULATED"
 
 
 class ArenaRunRequest(BaseModel):
@@ -190,6 +194,7 @@ class ProofRecord(BaseModel):
     verified_at: datetime
     file_size_bytes: int
     mime_type: str
+    data_source: Literal["LIVE", "SIMULATED"] = "SIMULATED"
 
 
 class ProofVerifyResult(BaseModel):
@@ -202,6 +207,7 @@ class ProofVerifyResult(BaseModel):
     status: ProofStatus
     verified_at: datetime
     chain_of_custody: list[dict[str, Any]]
+    data_source: Literal["LIVE", "SIMULATED"] = "SIMULATED"
 
 
 # ── Cash Flow Models ──────────────────────────────────────────────────────
@@ -227,6 +233,7 @@ class CashFlowRunway(BaseModel):
     projected_cash_flow: list[CashFlowEntry]
     risk_level: str
     recommendation: str
+    data_source: Literal["LIVE", "SIMULATED"] = "SIMULATED"
 
 
 # ── Dashboard Models ──────────────────────────────────────────────────────
@@ -248,6 +255,7 @@ class DashboardStats(BaseModel):
     monthly_revenue: float
     monthly_expenses: float
     recent_alerts: list[dict[str, Any]]
+    data_source: Literal["LIVE", "SIMULATED"] = "SIMULATED"
 
 
 # ── Webhook Models ────────────────────────────────────────────────────────
@@ -261,6 +269,7 @@ class WebhookEvent(BaseModel):
     created_at: datetime
     status: str = "PROCESSED"
     payload_preview: dict[str, Any]
+    data_source: Literal["LIVE", "SIMULATED"] = "SIMULATED"
 
 
 # ── Live Attack & Dynamic Proof Models (Friend Incoming) ─────────────────
@@ -288,6 +297,7 @@ class LiveAttackResult(BaseModel):
     evidence_matches: list[dict[str, Any]]
     processing_time_ms: float
     created_at: datetime
+    data_source: Literal["LIVE", "SIMULATED"] = "SIMULATED"
 
 
 class GenerateProofRequest(BaseModel):
@@ -315,6 +325,7 @@ class GenerateProofResponse(BaseModel):
     status: ProofStatus
     created_at: datetime
     proof_record: dict[str, Any]
+    data_source: Literal["LIVE", "SIMULATED"] = "SIMULATED"
 
 
 # ── Human Control Tower & Approval Queue Models (Feature 4) ───────────────
@@ -377,6 +388,7 @@ class ControlTowerItem(BaseModel):
     audit_trail: list[AuditTrailEntry] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
+    data_source: Literal["LIVE", "SIMULATED"] = "SIMULATED"
 
 
 class ControlTowerApproveRequest(BaseModel):
@@ -409,6 +421,7 @@ class ControlTowerListResponse(BaseModel):
     kpis: ControlTowerSummaryKPI
     count: int
     items: list[ControlTowerItem]
+    data_source: Literal["LIVE", "SIMULATED"] = "SIMULATED"
 
 
 # ── Agent-vs-Agent Commerce Loop Models (Feature 9) ───────────────────────
@@ -427,6 +440,7 @@ class AgentCommerceStep(BaseModel):
     timestamp: datetime
     status: str = "SUCCESS"  # SUCCESS | WAITING | INTERCEPTED
     payload_preview: dict[str, Any] = Field(default_factory=dict)
+    data_source: Literal["LIVE", "SIMULATED"] = "SIMULATED"
 
 
 class AgentCommerceSession(BaseModel):
@@ -439,6 +453,7 @@ class AgentCommerceSession(BaseModel):
     dispute_id: str | None = None
     steps: list[AgentCommerceStep] = Field(default_factory=list)
     created_at: datetime
+    data_source: Literal["LIVE", "SIMULATED"] = "SIMULATED"
 
 
 class AgentCommerceRunRequest(BaseModel):

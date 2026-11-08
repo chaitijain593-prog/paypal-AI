@@ -19,6 +19,7 @@ def list_proofs():
     proofs = get_all_proofs()
     return {
         "count": len(proofs),
+        "data_source": "SIMULATED",
         "merkle_root": get_merkle_root(),
         "algorithm": "SHA-256 Binary Merkle Tree",
         "proofs": proofs,
@@ -27,7 +28,7 @@ def list_proofs():
 
 @router.post("/generate", response_model=GenerateProofResponse)
 def generate_proof(body: GenerateProofRequest):
-    """Dynamically generate a verified Merkle proof tree with Zero-Knowledge privacy predicates."""
+    """Dynamically generate a verified Merkle proof tree with salted attribute commitments."""
     return generate_dynamic_merkle_proof(body)
 
 

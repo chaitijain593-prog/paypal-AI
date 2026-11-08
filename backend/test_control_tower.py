@@ -28,8 +28,9 @@ def test_control_tower_lifecycle():
     assert item["status"] == "APPROVED_AND_SUBMITTED"
     assert len(item["audit_trail"]) == 2
     assert item["audit_trail"][-1]["action"] == "APPROVE_AND_SUBMIT"
-    assert "PAYPAL_SANDBOX_200_OK" in item["audit_trail"][-1]["paypal_api_status"]
-    print("  [PASS] CT-9021 successfully approved and submitted to PayPal Sandbox.")
+    assert item["audit_trail"][-1]["paypal_api_status"] == "SIMULATED_NOT_SENT"
+    assert item["data_source"] == "SIMULATED"
+    print("  [PASS] CT-9021 successfully approved with honest SIMULATED_NOT_SENT status.")
 
     print(">>> 3. Testing Idempotency on CT-9021 (Double Approval)...")
     res_idempotent = client.post(

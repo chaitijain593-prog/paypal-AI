@@ -6,7 +6,7 @@
 
 [![PayPal](https://img.shields.io/badge/PayPal-Powered-0070BA?style=for-the-badge&logo=paypal&logoColor=white)](https://developer.paypal.com)
 [![AI](https://img.shields.io/badge/AI-Enabled-FFC43A?style=for-the-badge&logo=openai&logoColor=black)](https://paypalaihackathon.devpost.com/)
-[![Next.js](https://img.shields.io/badge/Next.js_14-000000?style=for-the-badge&logo=next.js&logoColor=white)](https://nextjs.org)
+[![Next.js](https://img.shields.io/badge/Next.js_16.4.3-000000?style=for-the-badge&logo=next.js&logoColor=white)](https://nextjs.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![AG Grid](https://img.shields.io/badge/AG_Grid-FF6900?style=for-the-badge)](https://www.ag-grid.com)
 
@@ -81,7 +81,7 @@ A buyer AI agent discovers products, pays via PayPal Sandbox, and later files a 
 
 ```mermaid
 flowchart LR
-    subgraph Frontend["Frontend (Next.js 14)"]
+    subgraph Frontend["Frontend (Next.js 16.4.3)"]
         D[Dashboard]
         A[Dispute Arena]
         T[Transaction Ledger]
@@ -175,7 +175,7 @@ paypal-AI/
 │   ├── requirements.txt
 │   └── .env.example
 │
-├── frontend/                   # Next.js 14 frontend
+├── frontend/                   # Next.js 16.4.3 frontend
 │   ├── src/
 │   │   ├── app/
 │   │   │   ├── layout.tsx     # Root layout with sidebar
@@ -195,13 +195,28 @@ paypal-AI/
 
 | Layer | Technology | Purpose |
 |-------|-----------|---------|
-| **Frontend** | Next.js 14, TypeScript, Tailwind CSS | App Router, server components, responsive UI |
+| **Frontend** | Next.js 16.4.3, TypeScript, Tailwind CSS | App Router, server components, responsive UI |
 | **Backend** | FastAPI, Python 3.11+ | REST API, async processing |
 | **Payments** | PayPal REST API v2 | Orders, Disputes, Webhooks, Tracking |
 | **AI/ML** | Gemini / OpenAI API | Defense reasoning, Arena simulation |
 | **Crypto** | SHA-256, Merkle Trees | Tamper-evident proof chains |
 | **Data Grid** | AG Grid Enterprise | Interactive financial ledger |
 | **Deployment** | Render Blueprint | One-click cloud deployment |
+
+## 🔍 What is Real vs Simulated (Honest Architecture Audit)
+
+To maintain absolute transparency and integrity, PaySentinel AI clearly separates real live calls from simulated/mock fallbacks. All simulated paths are labeled `SIMULATED` in data models and the UI:
+
+| Capability / Flow | Reality Status | Mechanism & Guarantee |
+| :--- | :--- | :--- |
+| **PayPal Sandbox Authentication** | **LIVE (Conditional)** | Real OAuth2 client credentials exchange with `https://api-m.sandbox.paypal.com/v1/oauth2/token`. |
+| **PayPal Orders v2 Lookups** | **LIVE (Conditional)** | Calls live PayPal Sandbox Orders API `GET /v2/checkout/orders/{id}` when credentials are configured. |
+| **Merkle Tree Proof Verification** | **LIVE (Algorithmic)** | Real deterministic SHA-256 Merkle tree calculation; rejects invalid proofs and detects leaf tampering. |
+| **Untrusted Message Firewall** | **LIVE (Deterministic)** | Real regex and pattern isolation scanner rejecting prompt injections (`IGNORE PREVIOUS`, system leaks). |
+| **Arena LLM Red-Teaming** | **LIVE / SCRIPTED** | Calls Google Gemini REST API when `GEMINI_API_KEY` is present; falls back to deterministic rule engine if absent. |
+| **Control Tower Queue Actions** | **SIMULATED** | State machine with deterministic audit logs; dispatches marked `SIMULATED_NOT_SENT` until real sandbox dispute loop is connected. |
+| **Dispute & Transaction Feeds** | **SIMULATED** | Seeded fixture datasets explicitly flagged with `data_source: "SIMULATED"`. |
+| **Agent Commerce Simulation** | **SIMULATED** | Step-by-step agent negotiation simulation; all actions and mock IDs explicitly flagged `data_source: "SIMULATED"`. |
 
 ## 🏆 Hackathon Prize Alignment
 

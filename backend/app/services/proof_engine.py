@@ -1,7 +1,7 @@
 """
 PaySentinel AI — Cryptographic Merkle Proof Tree Engine
 =======================================================
-Implements authentic binary SHA-256 Merkle trees for Visa Compelling Evidence 3.0.
+Implements binary SHA-256 Merkle trees for dispute defense.
 Calculates mathematical Merkle roots, generates cryptographic proof paths,
 and performs tamper-evident verification.
 """
@@ -35,7 +35,7 @@ class MerkleNode:
 
 
 class MerkleTree:
-    """Authentic Binary SHA-256 Merkle Tree."""
+    """Binary SHA-256 Merkle Tree."""
 
     def __init__(self, leaves: list[str]) -> None:
         if not leaves:
@@ -220,7 +220,7 @@ def verify_proof_record(proof_id: str) -> ProofVerifyResult | None:
 
 
 def generate_dynamic_merkle_proof(request: GenerateProofRequest) -> GenerateProofResponse:
-    """Dynamically construct a verified Merkle proof tree with Zero-Knowledge privacy predicates."""
+    """Dynamically construct a verified Merkle proof tree with salted attribute commitments."""
     proof_num = len(PROOF_STORE) + 1
     proof_id = f"PRF-{proof_num:03d}"
     evidence_id = f"EVD-{request.carrier.upper()}-{request.order_id[-4:]}"
@@ -240,21 +240,21 @@ def generate_dynamic_merkle_proof(request: GenerateProofRequest) -> GenerateProo
         sort_keys=True,
     )
 
-    # Leaf 2: Geofence Verification (ZK vs Raw)
+    # Leaf 2: Geofence Verification (Salted Commitment vs Raw)
     if request.use_zero_knowledge_predicates:
         geo_salt = sha256(f"{request.latitude}:{request.longitude}:{request.order_id}")[:16]
         leaf_2 = json.dumps(
             {
-                "predicate": "ZK_GEOFENCE_MATCH_RADIUS_15M",
+                "predicate": "SALTED_GEOFENCE_MATCH_RADIUS_15M",
                 "result": True,
                 "confidence": 0.994,
-                "privacy_standard": "GDPR_CCPA_PRESERVING_PREDICATE",
+                "privacy_standard": "PRESERVING_COMMITMENT",
                 "geofence_hash": sha256(f"{request.latitude:.3f}:{request.longitude:.3f}"),
                 "commitment_salt": geo_salt,
             },
             sort_keys=True,
         )
-        zk_predicates.append("Zero-Knowledge Geofence Inclusion (Exact coordinates withheld)")
+        zk_predicates.append("Salted Geofence Commitment (Exact coordinates withheld)")
     else:
         leaf_2 = json.dumps(
             {
@@ -266,20 +266,20 @@ def generate_dynamic_merkle_proof(request: GenerateProofRequest) -> GenerateProo
             sort_keys=True,
         )
 
-    # Leaf 3: Signature Verification (ZK vs Raw)
+    # Leaf 3: Signature Verification (Salted Commitment vs Raw)
     if request.use_zero_knowledge_predicates:
         sig_salt = sha256(f"{request.buyer_name}:{request.order_id}")[:16]
         leaf_3 = json.dumps(
             {
-                "predicate": "ZK_BUYER_SIGNATURE_AFFIRMATION",
+                "predicate": "SALTED_BUYER_SIGNATURE_AFFIRMATION",
                 "result": True,
-                "biometric_entropy": "AUTHENTIC_HARDWARE_TERMINAL",
+                "biometric_entropy": "HARDWARE_TERMINAL",
                 "signature_hash": sha256(request.buyer_name),
                 "commitment_salt": sig_salt,
             },
             sort_keys=True,
         )
-        zk_predicates.append("Zero-Knowledge Identity Affirmation (Biometric signature hash)")
+        zk_predicates.append("Salted Identity Commitment (Biometric signature hash)")
     else:
         leaf_3 = json.dumps(
             {

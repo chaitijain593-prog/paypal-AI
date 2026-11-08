@@ -11,4 +11,4 @@ router = APIRouter(prefix="/api/webhooks", tags=["Webhooks"])
 def list_webhook_events():
     """Return the webhook event log."""
     events = get_webhook_events()
-    return {"count": len(events), "events": events}
+    return {"count": len(events), "data_source": "SIMULATED", "events": events}

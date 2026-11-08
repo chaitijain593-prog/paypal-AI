@@ -167,15 +167,15 @@ def _generate_adversarial_rounds_firewall(request: ArenaRunRequest) -> list[Aren
             ("EVIDENCE_MATCH", "USPS Priority tracking confirms delivery. SHA-256 hash a7f3b2... verified against carrier API.", 16.0),
             ("GPS_VERIFIED", "Carrier handheld barcode scanner GPS matches buyer delivery address with 98.7% confidence.", 18.0),
             ("FIREWALL_ENGAGED", "⚠️ PROMPT INJECTION DETECTED. Untrusted input quarantined. Instruction override neutralized.", 20.0),
-            ("AUTH_REJECTED", "⚠️ Authority spoofing detected. Supervisor token authentication failed. Logged incident #SEC-0451.", 19.0),
-            ("MERKLE_PROOF_SUBMITTED", "Full Visa CE 3.0 Merkle proof package submitted to PayPal Disputes API. Rebuttal complete.", 22.0),
+            ("AUTH_REJECTED", "⚠️ Authority spoofing detected. Supervisor token authentication failed. Logged security event.", 19.0),
+            ("MERKLE_PROOF_SUBMITTED", "Cryptographic delivery proof package prepared for PayPal dispute defense. Rebuttal complete.", 22.0),
         ],
         DisputeReason.UNAUTHORIZED_TRANSACTION: [
             ("2FA_CONFIRMATION", "Transaction authenticated with SMS 2FA code sent to buyer registered phone number.", 17.0),
             ("IP_REPUTATION", "Payment IP matches 8 prior successful transactions over the last 14 months.", 19.0),
             ("FIREWALL_ENGAGED", "⚠️ DEBUG EXPLOIT ATTEMPT BLOCKED. Sensitive memory boundaries protected.", 21.0),
-            ("BIOMETRIC_PROOF", "Apple Pay biometric FaceID authorization token cryptographically signed at checkout.", 22.0),
-            ("DEFENSE_FINALIZED", "Irrefutable evidence chain submitted. Seller protection requirements 100% satisfied.", 20.0),
+            ("BIOMETRIC_PROOF", "Device authorization token verified at checkout.", 22.0),
+            ("DEFENSE_FINALIZED", "Verified evidence chain prepared. Seller protection requirements satisfied.", 20.0),
         ]
     }
 
@@ -276,13 +276,12 @@ def evaluate_live_attack(request: LiveAttackRequest) -> LiveAttackResult:
         rebuttal = (
             f"🛡️ [FIREWALL QUARANTINE ENGAGED] Threat Vector: {assessment.threat_category}. "
             f"Malicious imperative instructions sanitized and stripped from execution. "
-            f"Carrier USPS #9400111899223 proves authentic geofenced delivery (98.7% coordinate match) "
-            f"to authorized shipping address. All automated override directives rejected under zero-trust policy."
+            f"Carrier USPS #9400111899223 confirms delivery to authorized shipping address. "
+            f"All automated override directives rejected under zero-trust policy."
         )
         citations = [
-            "Untrusted Input Firewall Rule #SEC-0451",
-            "Visa Compelling Evidence 3.0 § 4.2 (Cryptographic Geofence Proof)",
-            "PayPal Seller Protection Policy § 11.2 (Signed Physical Delivery)",
+            "Untrusted Input Firewall Rule: DIRECT_INSTRUCTION_OVERRIDE",
+            "PayPal Seller Protection Policy: Physical Delivery Confirmation",
         ]
     elif assessment.is_threat:
         status = "DEFENDED"
@@ -290,11 +289,11 @@ def evaluate_live_attack(request: LiveAttackRequest) -> LiveAttackResult:
         rebuttal = (
             f"⚠️ Anomaly flagged: {assessment.threat_category} (Risk Score: {assessment.risk_score}%). "
             f"Input sanitized. Core delivery record confirms item was delivered to customer's porch with "
-            f"verified carrier delivery scan and matching IP geofence."
+            f"verified carrier delivery scan and matching address."
         )
         citations = [
-            "Visa CE 3.0 Pre-Dispute Rebuttal Standard",
-            "PayPal Merchant Dispute Defense Protocol",
+            "Carrier Proof of Delivery Verification",
+            "PayPal Seller Protection Guidelines",
         ]
     else:
         status = "DEFENDED"
@@ -305,8 +304,8 @@ def evaluate_live_attack(request: LiveAttackRequest) -> LiveAttackResult:
             f"Tamper-evident Merkle root matches authentic delivery manifest."
         )
         citations = [
-            "Visa Compelling Evidence 3.0 § 3.1",
-            "USPS Tracking & Geolocation API v3",
+            "Carrier Electronic Signature Confirmation",
+            "USPS Tracking & Delivery Record",
         ]
 
     return LiveAttackResult(

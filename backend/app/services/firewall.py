@@ -166,10 +166,10 @@ class UntrustedInputFirewall:
             primary_category = threats[0].category
             quarantined = risk_score >= 60.0
 
-            # 4. Perform AST/Sanitization Isolation
+            # 4. Perform Sanitization Isolation
             sanitized_text = self._sanitize(raw_text)
             applied_safeguards.extend([
-                "Untrusted Input AST Isolation",
+                "Untrusted Input Pattern Isolation",
                 "Delimiters & Control Characters Neutralized",
                 "Imperative Directives Stripped",
                 "Quarantine Tagging Attached to Case Audit Record",
