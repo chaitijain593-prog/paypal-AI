@@ -1,17 +1,17 @@
 'use client';
 
-import React, { useRef, useState, useEffect, useMemo, Suspense, Component, ErrorInfo, ReactNode } from 'react';
+import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import {
   Environment,
   ContactShadows,
   Float,
   Html,
-  useGLTF,
 } from '@react-three/drei';
 import * as THREE from 'three';
-import { CheckCircle2, Lock, ShieldCheck } from 'lucide-react';
+import { CheckCircle2, ShieldCheck, Sparkles, Cpu, Zap, Lock, ShieldAlert } from 'lucide-react';
 import PhoneScreenContent from '@/components/PhoneScreenContent';
+
 // Helper to build a rounded-corner smartphone chassis shape
 function createRoundedRectShape(width: number, height: number, radius: number) {
   const shape = new THREE.Shape();
@@ -29,47 +29,182 @@ function createRoundedRectShape(width: number, height: number, radius: number) {
   return shape;
 }
 
-// GLTF Phone Loader for /public/phone.glb (used when user adds their 3D model)
-function GLTFPhone() {
-  const gltf = useGLTF('/phone.glb');
+// 3D Swirling Particle Nebula / Constellation Mesh
+function ParticleNebula() {
+  const count = 320;
+  const meshRef = useRef<THREE.Points>(null);
+
+  const [positions, colors] = useMemo(() => {
+    const pos = new Float32Array(count * 3);
+    const col = new Float32Array(count * 3);
+    const baseColor1 = new THREE.Color('#38BDF8'); // Cyan
+    const baseColor2 = new THREE.Color('#0070BA'); // PayPal Blue
+    const baseColor3 = new THREE.Color('#FFC43A'); // Gold accent
+
+    for (let i = 0; i < count; i++) {
+      const radius = 2.0 + Math.random() * 3.5;
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+
+      pos[i * 3] = radius * Math.sin(phi) * Math.cos(theta);
+      pos[i * 3 + 1] = (radius * Math.sin(phi) * Math.sin(theta)) * 0.9;
+      pos[i * 3 + 2] = radius * Math.cos(phi) * 0.8;
+
+      const choice = Math.random();
+      const c = choice > 0.8 ? baseColor3 : choice > 0.4 ? baseColor1 : baseColor2;
+      col[i * 3] = c.r;
+      col[i * 3 + 1] = c.g;
+      col[i * 3 + 2] = c.b;
+    }
+    return [pos, col];
+  }, [count]);
+
+  useFrame((state) => {
+    if (!meshRef.current) return;
+    const t = state.clock.getElapsedTime();
+    meshRef.current.rotation.y = t * 0.04;
+    meshRef.current.rotation.x = Math.sin(t * 0.03) * 0.08;
+  });
+
   return (
-    <group>
-      <primitive object={gltf.scene} scale={1.0} />
-      {/* HTML screen overlay on the GLTF model */}
-      <Html transform
-        distanceFactor={1.6}
-        position={[0, 0, 0.08]}
-        className="w-[335px] h-[670px] pointer-events-auto rounded-[34px] overflow-hidden"
-      >
-        <PhoneScreenContent />
-      </Html>
+    <points ref={meshRef}>
+      <bufferGeometry>
+        <bufferAttribute
+          attach="attributes-position"
+          args={[positions, 3]}
+        />
+        <bufferAttribute
+          attach="attributes-color"
+          args={[colors, 3]}
+        />
+      </bufferGeometry>
+      <pointsMaterial
+        size={0.045}
+        vertexColors
+        transparent
+        opacity={0.85}
+        blending={THREE.AdditiveBlending}
+      />
+    </points>
+  );
+}
+
+// Holographic Security Laser Scan Line (Sweeps across the phone glass)
+function HolographicLaserScanner({ isExploded }: { isExploded: boolean }) {
+  const scannerRef = useRef<THREE.Group>(null);
+
+  useFrame((state) => {
+    if (!scannerRef.current) return;
+    const t = state.clock.getElapsedTime();
+    // Sweeps up and down along the phone screen height (-1.25 to +1.25)
+    const yPos = Math.sin(t * 2.2) * 1.25;
+    scannerRef.current.position.y = yPos;
+  });
+
+  const zDepth = isExploded ? 0.22 : 0.095;
+
+  return (
+    <group ref={scannerRef} position={[0, 0, zDepth]}>
+      {/* Primary Laser Line */}
+      <mesh>
+        <boxGeometry args={[1.32, 0.02, 0.005]} />
+        <meshBasicMaterial color="#38BDF8" transparent opacity={0.9} />
+      </mesh>
+      {/* Volumetric Glowing Sheen Band */}
+      <mesh position={[0, 0, 0.002]}>
+        <planeGeometry args={[1.32, 0.22]} />
+        <meshBasicMaterial
+          color="#0284C7"
+          transparent
+          opacity={0.25}
+          side={THREE.DoubleSide}
+          blending={THREE.AdditiveBlending}
+        />
+      </mesh>
     </group>
   );
 }
 
-// Procedural Sleek Metallic Smartphone (matches user screenshot proportions)
-function ProceduralPhone({ cardsOpacityRef }: { cardsOpacityRef: React.MutableRefObject<number> }) {
-  // Dimensions calibrated so distanceFactor={1.6} maps 335px * 670px exactly
+// Dual Electromagnetic Firewall Shockwave Rings
+function ShockwaveRings({ triggerPulse }: { triggerPulse: number }) {
+  const ringRef = useRef<THREE.Mesh>(null);
+  const ring2Ref = useRef<THREE.Mesh>(null);
+  const pulseAge = useRef(999);
+
+  useEffect(() => {
+    if (triggerPulse > 0) {
+      pulseAge.current = 0;
+    }
+  }, [triggerPulse]);
+
+  useFrame((_, delta) => {
+    if (pulseAge.current < 1.5) {
+      pulseAge.current += delta;
+      const progress = pulseAge.current / 1.5;
+      const scale = 1.0 + progress * 3.8;
+      const opacity = Math.max(0, 1.0 - progress);
+
+      if (ringRef.current) {
+        ringRef.current.scale.set(scale, scale, scale);
+        (ringRef.current.material as THREE.MeshBasicMaterial).opacity = opacity * 0.8;
+      }
+      if (ring2Ref.current) {
+        const scale2 = 1.0 + progress * 4.4;
+        ring2Ref.current.scale.set(scale2, scale2, scale2);
+        (ring2Ref.current.material as THREE.MeshBasicMaterial).opacity = opacity * 0.5;
+      }
+    } else {
+      if (ringRef.current) {
+        (ringRef.current.material as THREE.MeshBasicMaterial).opacity = 0;
+      }
+      if (ring2Ref.current) {
+        (ring2Ref.current.material as THREE.MeshBasicMaterial).opacity = 0;
+      }
+    }
+  });
+
+  return (
+    <group position={[0, 0, 0.1]}>
+      <mesh ref={ringRef} rotation={[0, 0, 0]}>
+        <ringGeometry args={[1.3, 1.34, 48]} />
+        <meshBasicMaterial color="#38BDF8" transparent opacity={0} side={THREE.DoubleSide} />
+      </mesh>
+      <mesh ref={ring2Ref} rotation={[0, 0, Math.PI / 4]}>
+        <ringGeometry args={[1.4, 1.45, 48]} />
+        <meshBasicMaterial color="#0070BA" transparent opacity={0} side={THREE.DoubleSide} />
+      </mesh>
+    </group>
+  );
+}
+
+// Procedural 3D Phone with Exploded CAD Architecture Mode
+function ExplodablePhone({
+  cardsOpacityRef,
+  isExploded,
+}: {
+  cardsOpacityRef: React.MutableRefObject<number>;
+  isExploded: boolean;
+}) {
   const phoneWidth = 1.40;
   const phoneHeight = 2.74;
   const cornerRadius = 0.16;
 
-  // Outer metallic body geometry with rounded beveled corners
+  // Outer titanium frame
   const bodyGeometry = useMemo(() => {
     const shape = createRoundedRectShape(phoneWidth, phoneHeight, cornerRadius);
     const geom = new THREE.ExtrudeGeometry(shape, {
-      depth: 0.08,
+      depth: 0.085,
       bevelEnabled: true,
-      bevelSegments: 4,
+      bevelSegments: 5,
       steps: 1,
-      bevelSize: 0.02,
-      bevelThickness: 0.02,
+      bevelSize: 0.022,
+      bevelThickness: 0.022,
     });
     geom.center();
     return geom;
   }, []);
 
-  // Inner black screen frame geometry
+  // Screen frame geometry
   const screenBackdropGeometry = useMemo(() => {
     const shape = createRoundedRectShape(1.36, 2.70, 0.13);
     const geom = new THREE.ShapeGeometry(shape);
@@ -77,200 +212,370 @@ function ProceduralPhone({ cardsOpacityRef }: { cardsOpacityRef: React.MutableRe
     return geom;
   }, []);
 
+  // Inner Silicon Logic Board (visible in exploded mode)
+  const logicBoardGeometry = useMemo(() => {
+    const shape = createRoundedRectShape(1.28, 2.58, 0.10);
+    const geom = new THREE.ShapeGeometry(shape);
+    geom.center();
+    return geom;
+  }, []);
+
+  // Camera plateau
+  const cameraPlateauGeom = useMemo(() => {
+    const shape = createRoundedRectShape(0.48, 0.52, 0.10);
+    const geom = new THREE.ExtrudeGeometry(shape, {
+      depth: 0.035,
+      bevelEnabled: true,
+      bevelSegments: 3,
+      bevelSize: 0.012,
+      bevelThickness: 0.012,
+    });
+    geom.center();
+    return geom;
+  }, []);
+
+  const lensRingGeom = useMemo(() => new THREE.CylinderGeometry(0.085, 0.085, 0.025, 24), []);
+  const lensGlassGeom = useMemo(() => new THREE.CylinderGeometry(0.075, 0.075, 0.027, 24), []);
+
   const frontCardRef = useRef<HTMLDivElement>(null);
   const backCardRef = useRef<HTMLDivElement>(null);
-  const currentCardOpacity = useRef(1);
+  const proofBadgeRef = useRef<HTMLDivElement>(null);
 
-  // Update floating cards opacity with spring inertia without React re-render
-  useFrame(() => {
+  // Group refs for exploded Z-translation
+  const chassisGroupRef = useRef<THREE.Group>(null);
+  const logicBoardGroupRef = useRef<THREE.Group>(null);
+  const screenGroupRef = useRef<THREE.Group>(null);
+  const frontCardGroupRef = useRef<THREE.Group>(null);
+  const backCardGroupRef = useRef<THREE.Group>(null);
+  const chipCoreRef = useRef<THREE.Mesh>(null);
+
+  useFrame((state, delta) => {
+    const dt = Math.min(delta, 0.05);
+
+    // Exploded Z-offsets
+    const targetChassisZ = isExploded ? -0.42 : 0.0;
+    const targetBoardZ = isExploded ? -0.16 : 0.01;
+    const targetScreenZ = isExploded ? 0.20 : 0.068;
+    const targetFrontCardZ = isExploded ? 0.72 : 0.38;
+    const targetBackCardZ = isExploded ? -0.65 : -0.18;
+
+    if (chassisGroupRef.current) {
+      chassisGroupRef.current.position.z = THREE.MathUtils.damp(
+        chassisGroupRef.current.position.z,
+        targetChassisZ,
+        5.0,
+        dt
+      );
+    }
+    if (logicBoardGroupRef.current) {
+      logicBoardGroupRef.current.position.z = THREE.MathUtils.damp(
+        logicBoardGroupRef.current.position.z,
+        targetBoardZ,
+        5.0,
+        dt
+      );
+    }
+    if (screenGroupRef.current) {
+      screenGroupRef.current.position.z = THREE.MathUtils.damp(
+        screenGroupRef.current.position.z,
+        targetScreenZ,
+        5.0,
+        dt
+      );
+    }
+    if (frontCardGroupRef.current) {
+      frontCardGroupRef.current.position.z = THREE.MathUtils.damp(
+        frontCardGroupRef.current.position.z,
+        targetFrontCardZ,
+        5.0,
+        dt
+      );
+    }
+    if (backCardGroupRef.current) {
+      backCardGroupRef.current.position.z = THREE.MathUtils.damp(
+        backCardGroupRef.current.position.z,
+        targetBackCardZ,
+        5.0,
+        dt
+      );
+    }
+
+    // Pulse the silicon cryptographic chip when exploded
+    if (chipCoreRef.current) {
+      const t = state.clock.getElapsedTime();
+      const pulse = 1.0 + Math.sin(t * 4.0) * 0.08;
+      chipCoreRef.current.scale.set(pulse, pulse, pulse);
+    }
+
+    // Card opacity damping
     const targetOp = cardsOpacityRef.current ?? 1;
-    currentCardOpacity.current = THREE.MathUtils.lerp(currentCardOpacity.current, targetOp, 0.07);
-    const op = currentCardOpacity.current;
+    const op = targetOp;
     if (frontCardRef.current) {
       frontCardRef.current.style.opacity = String(op);
-      frontCardRef.current.style.transform = `translate3d(0, 0, 0) scale(${0.88 + op * 0.12})`;
     }
     if (backCardRef.current) {
-      backCardRef.current.style.opacity = String(op * 0.82);
-      backCardRef.current.style.transform = `translate3d(0, 0, 0) scale(${0.88 + op * 0.12})`;
+      backCardRef.current.style.opacity = String(op * 0.9);
+    }
+    if (proofBadgeRef.current) {
+      proofBadgeRef.current.style.opacity = String(op);
     }
   });
 
   return (
     <group>
-      {/* Outer Titanium Metallic Chassis with Octane-Style Specular Bevel */}
-      <mesh geometry={bodyGeometry} castShadow receiveShadow>
-        <meshStandardMaterial
-          color="#1e293b"
-          metalness={0.94}
-          roughness={0.14}
-          envMapIntensity={1.6}
-        />
-      </mesh>
+      {/* LAYER 1: Titanium Rear Chassis + Camera Module */}
+      <group ref={chassisGroupRef}>
+        <mesh geometry={bodyGeometry} castShadow receiveShadow>
+          <meshPhysicalMaterial
+            color="#1e2638"
+            metalness={0.92}
+            roughness={0.20}
+            clearcoat={0.65}
+            clearcoatRoughness={0.15}
+            reflectivity={0.95}
+            envMapIntensity={2.5}
+          />
+        </mesh>
 
-      {/* Glossy Screen Glass Inset */}
-      <mesh geometry={screenBackdropGeometry} position={[0, 0, 0.062]}>
-        <meshStandardMaterial
-          color="#06090e"
-          roughness={0.08}
-          metalness={0.5}
-        />
-      </mesh>
+        {/* Rear Camera Island */}
+        <group position={[-0.34, 0.88, -0.065]}>
+          <mesh geometry={cameraPlateauGeom} castShadow>
+            <meshPhysicalMaterial
+              color="#182030"
+              metalness={0.88}
+              roughness={0.22}
+              envMapIntensity={2.0}
+            />
+          </mesh>
+          <mesh geometry={lensRingGeom} position={[-0.11, 0.12, -0.02]} rotation={[Math.PI / 2, 0, 0]}>
+            <meshStandardMaterial color="#475569" metalness={0.95} roughness={0.1} />
+          </mesh>
+          <mesh geometry={lensGlassGeom} position={[-0.11, 0.12, -0.022]} rotation={[Math.PI / 2, 0, 0]}>
+            <meshBasicMaterial color="#020617" />
+          </mesh>
+          <mesh geometry={lensRingGeom} position={[-0.11, -0.12, -0.02]} rotation={[Math.PI / 2, 0, 0]}>
+            <meshStandardMaterial color="#475569" metalness={0.95} roughness={0.1} />
+          </mesh>
+          <mesh geometry={lensGlassGeom} position={[-0.11, -0.12, -0.022]} rotation={[Math.PI / 2, 0, 0]}>
+            <meshBasicMaterial color="#020617" />
+          </mesh>
+          <mesh geometry={lensRingGeom} position={[0.12, 0.0, -0.02]} rotation={[Math.PI / 2, 0, 0]}>
+            <meshStandardMaterial color="#475569" metalness={0.95} roughness={0.1} />
+          </mesh>
+          <mesh geometry={lensGlassGeom} position={[0.12, 0.0, -0.022]} rotation={[Math.PI / 2, 0, 0]}>
+            <meshBasicMaterial color="#020617" />
+          </mesh>
+        </group>
+      </group>
 
-      {/* Live Interactive Fintech UI via drei <Html transform> */}
-      <Html transform
-        distanceFactor={1.6}
-        position={[0, 0, 0.065]}
-        className="w-[335px] h-[670px] pointer-events-auto rounded-[34px] overflow-hidden shadow-2xl"
-      >
-        <PhoneScreenContent />
-      </Html>
+      {/* LAYER 2: Cryptographic Silicon Logic Board (Exploded View) */}
+      <group ref={logicBoardGroupRef}>
+        <mesh geometry={logicBoardGeometry} position={[0, 0, 0]}>
+          <meshStandardMaterial
+            color="#082f49"
+            metalness={0.85}
+            roughness={0.35}
+            wireframe={isExploded}
+          />
+        </mesh>
 
-      {/* Floating Front Card: Visa CE 3.0 Rebuttal Won */}
-      <Html
-        transform
-        distanceFactor={1.6}
-        position={[-0.42, -0.48, 0.35]}
-        className="pointer-events-none transition-all duration-300"
-      >
-        <div
-          ref={frontCardRef}
-          className="w-[210px] rounded-2xl bg-[#151D2E]/95 border border-[#3B9EFF]/30 p-3.5 shadow-2xl backdrop-blur-md"
-          style={{
-            boxShadow: '0 20px 45px -10px rgba(0, 0, 0, 0.9), 0 0 30px rgba(0, 112, 186, 0.3)',
-          }}
+        {/* Central Luminous SHA-256 Silicon Chip */}
+        <mesh ref={chipCoreRef} position={[0, 0.2, 0.015]}>
+          <boxGeometry args={[0.38, 0.38, 0.02]} />
+          <meshStandardMaterial
+            color="#0284C7"
+            emissive="#0284C7"
+            emissiveIntensity={isExploded ? 2.5 : 0.4}
+            metalness={0.9}
+            roughness={0.1}
+          />
+        </mesh>
+
+        {/* Chip Label in 3D Space */}
+        {isExploded && (
+          <Html position={[0, 0.2, 0.06]} transform distanceFactor={1.6} className="pointer-events-none select-none">
+            <div className="px-2 py-0.5 rounded bg-black/80 border border-cyan-400 text-[9px] font-mono font-bold text-cyan-300 whitespace-nowrap shadow-lg">
+              PAYPAL CRYPTO ENGINE // SHA-256
+            </div>
+          </Html>
+        )}
+      </group>
+
+      {/* LAYER 3: Main OLED Screen & Interactive Web View */}
+      <group ref={screenGroupRef}>
+        <mesh geometry={screenBackdropGeometry}>
+          <meshStandardMaterial
+            color="#030712"
+            roughness={0.05}
+            metalness={0.8}
+          />
+        </mesh>
+
+        {/* Live Interactive Fintech UI via drei <Html transform> */}
+        <Html
+          transform
+          distanceFactor={1.6}
+          position={[0, 0, 0.003]}
+          className="w-[335px] h-[670px] pointer-events-auto rounded-[34px] overflow-hidden shadow-2xl"
         >
-          <div className="text-center space-y-2">
-            <div className="w-9 h-9 rounded-full bg-emerald-500/20 border border-emerald-500/40 mx-auto flex items-center justify-center text-emerald-400 shadow-inner">
-              <CheckCircle2 className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="text-[9.5px] uppercase font-extrabold tracking-wider text-emerald-400">
-                CE 3.0 Rebuttal Won
-              </p>
-              <h3 className="text-xs font-bold text-white mt-0.5">Payment Confirmed</h3>
-              <p className="text-[9.5px] text-slate-300 mt-0.5">
-                Evidence verified by Visa &amp; PayPal
-              </p>
-            </div>
-            <div className="p-2 rounded-xl bg-white/[0.06] border border-white/[0.1] text-left text-[11px] flex justify-between items-center text-slate-200">
-              <span className="text-slate-300">Protected Balance:</span>
-              <span className="font-bold text-white tabular-nums">$1,249.99</span>
+          <PhoneScreenContent />
+        </Html>
+
+        {/* Sweeping Holographic Laser Scanner Line */}
+        <HolographicLaserScanner isExploded={isExploded} />
+      </group>
+
+      {/* LAYER 4: Exploded Floating Front Card: Visa CE 3.0 Rebuttal */}
+      <group ref={frontCardGroupRef} position={[-0.44, -0.46, 0.38]}>
+        <Html
+          transform
+          distanceFactor={1.6}
+          className="pointer-events-none transition-all duration-300"
+        >
+          <div
+            ref={frontCardRef}
+            className="w-[220px] rounded-2xl bg-[#0B132B]/95 border border-[#38BDF8]/50 p-4 shadow-2xl backdrop-blur-2xl ring-1 ring-cyan-500/20"
+            style={{
+              boxShadow: '0 30px 60px -12px rgba(0, 0, 0, 0.95), 0 0 35px rgba(14, 165, 233, 0.45)',
+            }}
+          >
+            <div className="text-center space-y-2">
+              <div className="w-10 h-10 rounded-full bg-emerald-500/20 border border-emerald-400/60 mx-auto flex items-center justify-center text-emerald-400 shadow-inner">
+                <CheckCircle2 className="w-6 h-6 animate-pulse" />
+              </div>
+              <div>
+                <p className="text-[10px] uppercase font-black tracking-wider text-emerald-400">
+                  Visa CE 3.0 Rebuttal Won
+                </p>
+                <h3 className="text-sm font-bold text-white mt-0.5">Payment Confirmed</h3>
+                <p className="text-[10px] text-slate-300 mt-0.5">
+                  Authentic Carrier GPS + Signed Proof
+                </p>
+              </div>
+              <div className="p-2.5 rounded-xl bg-white/[0.08] border border-white/[0.14] text-left text-xs flex justify-between items-center text-slate-200">
+                <span className="text-slate-300">Protected Balance:</span>
+                <span className="font-extrabold text-white tabular-nums text-sm">$1,249.99</span>
+              </div>
             </div>
           </div>
-        </div>
-      </Html>
+        </Html>
+      </group>
 
-      {/* Floating Back Card: Buyer AI Agent */}
-      <Html
-        transform
-        distanceFactor={1.6}
-        position={[0.52, 0.60, -0.24]}
-        className="pointer-events-none transition-all duration-300 hidden sm:block"
-      >
-        <div
-          ref={backCardRef}
-          className="w-[210px] rounded-2xl bg-[#151D2E]/90 border border-white/[0.12] p-3 shadow-2xl backdrop-blur-md"
-          style={{
-            filter: 'blur(0.5px)',
-          }}
+      {/* LAYER 5: Exploded Floating Back Card: Buyer AI Agent */}
+      <group ref={backCardGroupRef} position={[0.54, 0.58, -0.18]}>
+        <Html
+          transform
+          distanceFactor={1.6}
+          className="pointer-events-none transition-all duration-300 hidden sm:block"
         >
-          <div className="rounded-xl p-2.5 bg-white/[0.04] border border-white/[0.08] space-y-1.5">
-            <div className="flex items-center justify-between text-[9px] font-bold uppercase tracking-wider text-slate-300">
-              <span>BUYER AI AGENT</span>
-              <span className="text-[#3B9EFF]">AGENT #409</span>
-            </div>
-            <div>
-              <p className="text-[9px] text-slate-400">Pre-Authorized Balance</p>
-              <p className="text-base font-extrabold text-white tabular-nums">$15,236.00</p>
-            </div>
-            <div className="pt-0.5 flex items-center gap-1.5 text-[9px] font-medium text-emerald-400">
-              <ShieldCheck className="w-3.5 h-3.5" />
-              <span>Spending Guard: Auto-Checkout</span>
+          <div
+            ref={backCardRef}
+            className="w-[215px] rounded-2xl bg-[#0B132B]/90 border border-white/[0.16] p-3.5 shadow-2xl backdrop-blur-2xl ring-1 ring-white/10"
+            style={{
+              boxShadow: '0 25px 45px -10px rgba(0, 0, 0, 0.9), 0 0 30px rgba(56, 189, 248, 0.25)',
+            }}
+          >
+            <div className="rounded-xl p-2.5 bg-white/[0.04] border border-white/[0.08] space-y-1.5">
+              <div className="flex items-center justify-between text-[9.5px] font-bold uppercase tracking-wider text-slate-300">
+                <span>BUYER AI AGENT</span>
+                <span className="text-[#38BDF8]">AGENT #409</span>
+              </div>
+              <div>
+                <p className="text-[9.5px] text-slate-400">Pre-Authorized Balance</p>
+                <p className="text-base font-extrabold text-white tabular-nums">$15,236.00</p>
+              </div>
+              <div className="pt-0.5 flex items-center gap-1.5 text-[9.5px] font-semibold text-emerald-400">
+                <ShieldCheck className="w-4 h-4" />
+                <span>Spending Guard: Auto-Checkout</span>
+              </div>
             </div>
           </div>
-        </div>
-      </Html>
+        </Html>
+      </group>
+
+      {/* Floating Holographic Proof Chip */}
+      <group position={[0.38, -0.22, isExploded ? 0.82 : 0.44]}>
+        <Html
+          transform
+          distanceFactor={1.6}
+          className="pointer-events-none transition-all duration-300 hidden md:block"
+        >
+          <div
+            ref={proofBadgeRef}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#0284C7]/30 border border-cyan-400/60 text-white shadow-xl backdrop-blur-md"
+            style={{
+              boxShadow: '0 12px 30px rgba(2, 132, 199, 0.5)',
+            }}
+          >
+            <Sparkles className="w-3.5 h-3.5 text-[#FFC43A] animate-spin" />
+            <span className="text-[10px] font-mono font-bold tracking-tight text-cyan-200">
+              SHA-256 Merkle Proof Verified
+            </span>
+          </div>
+        </Html>
+      </group>
     </group>
-  );
-}
-
-// Error Boundary for GLTF Phone Loading
-class ModelErrorBoundary extends Component<
-  { fallback: ReactNode; children: ReactNode },
-  { hasError: boolean }
-> {
-  state = { hasError: false };
-  static getDerivedStateFromError() {
-    return { hasError: true };
-  }
-  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    // Graceful fallback to procedural metallic 3D phone model
-  }
-  render() {
-    if (this.state.hasError) return this.props.fallback;
-    return this.props.children;
-  }
-}
-
-function PhoneAssembly({
-  hasCustomModel,
-  cardsOpacityRef,
-}: {
-  hasCustomModel: boolean;
-  cardsOpacityRef: React.MutableRefObject<number>;
-}) {
-  if (!hasCustomModel) {
-    return <ProceduralPhone cardsOpacityRef={cardsOpacityRef} />;
-  }
-
-  return (
-    <ModelErrorBoundary fallback={<ProceduralPhone cardsOpacityRef={cardsOpacityRef} />}>
-      <Suspense fallback={<ProceduralPhone cardsOpacityRef={cardsOpacityRef} />}>
-        <GLTFPhone />
-      </Suspense>
-    </ModelErrorBoundary>
   );
 }
 
 interface SceneProps {
   progressRef: React.MutableRefObject<number>;
   presetAngle?: 'isometric' | 'floating' | 'flat';
+  isExploded?: boolean;
+  triggerSpin?: number;
+  triggerPulse?: number;
 }
 
-function Scene({ progressRef, presetAngle = 'isometric' }: SceneProps) {
+function Scene({
+  progressRef,
+  presetAngle = 'isometric',
+  isExploded = false,
+  triggerSpin = 0,
+  triggerPulse = 0,
+}: SceneProps) {
   const groupRef = useRef<THREE.Group>(null);
   const cardsOpacityRef = useRef<number>(1);
-  const mouseRef = useRef({ x: 0, y: 0 });
+  const mouseTargetRef = useRef({ x: 0, y: 0 });
+  const mouseSmoothRef = useRef({ x: 0, y: 0 });
+  const scrollSmoothRef = useRef(0);
+  const targetSpinAngleRef = useRef(0);
+  const currentSpinAngleRef = useRef(0);
+  const prevSpinTriggerRef = useRef(triggerSpin);
   const { camera } = useThree();
-  const [hasCustomModel, setHasCustomModel] = useState(false);
 
   // Mouse parallax listener
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      mouseRef.current.x = (e.clientX / window.innerWidth) * 2 - 1;
-      mouseRef.current.y = -(e.clientY / window.innerHeight) * 2 + 1;
+      mouseTargetRef.current.x = (e.clientX / window.innerWidth) * 2 - 1;
+      mouseTargetRef.current.y = -(e.clientY / window.innerHeight) * 2 + 1;
     };
     window.addEventListener('mousemove', handleMouseMove);
     return () => window.removeEventListener('mousemove', handleMouseMove);
   }, []);
 
-  // Check if /public/phone.glb exists so we don't throw 404 unhandled rejections
+  // Listen for 360 Spin Trigger - adds full 360 deg (+2*PI rad)
   useEffect(() => {
-    fetch('/phone.glb', { method: 'HEAD' })
-      .then((res) => {
-        if (res.ok && res.status === 200) {
-          setHasCustomModel(true);
-        }
-      })
-      .catch(() => setHasCustomModel(false));
-  }, []);
+    if (triggerSpin > prevSpinTriggerRef.current) {
+      targetSpinAngleRef.current += Math.PI * 2;
+      prevSpinTriggerRef.current = triggerSpin;
+    }
+  }, [triggerSpin]);
 
-  useFrame(() => {
+  // Liquid 60/120fps physics loop with delta-time dampening
+  useFrame((state, delta) => {
     if (!groupRef.current) return;
-    const p = Math.min(Math.max(progressRef.current || 0, 0), 1);
+    const dt = Math.min(delta, 0.05);
 
-    // Preset base rotations
+    // 1. Inertial Damped Mouse Tracking
+    mouseSmoothRef.current.x = THREE.MathUtils.damp(mouseSmoothRef.current.x, mouseTargetRef.current.x, 5.0, dt);
+    mouseSmoothRef.current.y = THREE.MathUtils.damp(mouseSmoothRef.current.y, mouseTargetRef.current.y, 5.0, dt);
+
+    // 2. Smooth Scroll Damping (absorbs mouse wheel notches)
+    const rawProgress = Math.min(Math.max(progressRef.current || 0, 0), 1);
+    scrollSmoothRef.current = THREE.MathUtils.damp(scrollSmoothRef.current, rawProgress, 4.8, dt);
+    const p = scrollSmoothRef.current;
+
+    // 3. Preset Base Rotations
     let baseRotX = 8 * (Math.PI / 180);
     let baseRotY = -22 * (Math.PI / 180);
     let baseRotZ = 3 * (Math.PI / 180);
@@ -285,34 +590,46 @@ function Scene({ progressRef, presetAngle = 'isometric' }: SceneProps) {
       baseRotZ = 0;
     }
 
-    // Gentle mouse parallax active during Stage 1 (0 to 30%)
+    // 4. Subtle Parallax and Zero-G Floating Oscillation
+    const time = state.clock.getElapsedTime();
+    const idleY = Math.sin(time * 1.6) * 0.035;
+    const idleRotX = Math.cos(time * 1.2) * 0.015;
+    const idleRotY = Math.sin(time * 0.9) * 0.015;
+
     const parallaxFactor = Math.max(0, 1 - p / 0.3);
-    const mouseRotX = -mouseRef.current.y * 0.06 * parallaxFactor;
-    const mouseRotY = mouseRef.current.x * 0.09 * parallaxFactor;
+    const mouseRotX = -mouseSmoothRef.current.y * 0.09 * parallaxFactor;
+    const mouseRotY = mouseSmoothRef.current.x * 0.14 * parallaxFactor;
+
+    // 5. Spin Damping (Smooth continuous 360 spin animation)
+    currentSpinAngleRef.current = THREE.MathUtils.damp(
+      currentSpinAngleRef.current,
+      targetSpinAngleRef.current,
+      4.2,
+      dt
+    );
+    const spinAngle = currentSpinAngleRef.current;
 
     let targetX = 0.15;
     let targetY = 0.0;
     let targetZ = 0.0;
     let targetRotX = baseRotX + mouseRotX;
-    let targetRotY = baseRotY + mouseRotY;
+    let targetRotY = baseRotY + mouseRotY + spinAngle;
     let targetRotZ = baseRotZ;
-    let targetScale = 1.0;
-    let targetCamZ = 5.2;
+    let targetScale = isExploded ? 0.92 : 1.0;
+    let targetCamZ = isExploded ? 5.8 : 5.2;
     let cardOpacity = 1.0;
 
     if (p <= 0.3) {
-      // 0-30%: phone tilted at preset angle, headline visible, cards full opacity
       const t = p / 0.3;
       targetX = THREE.MathUtils.lerp(0.15, 0.08, t);
       targetY = 0.0;
       targetRotX = baseRotX + mouseRotX;
-      targetRotY = baseRotY + mouseRotY;
+      targetRotY = baseRotY + mouseRotY + spinAngle;
       targetRotZ = baseRotZ;
-      targetScale = 1.0;
-      targetCamZ = 5.2;
+      targetScale = isExploded ? 0.92 : 1.0;
+      targetCamZ = isExploded ? 5.8 : 5.2;
       cardOpacity = 1.0 - t * 0.15;
     } else if (p <= 0.6) {
-      // 30-60%: phone rotates to face camera (rot -> 0), cards fade to 0
       const t = (p - 0.3) / 0.3;
       const ease = t * t * (3 - 2 * t);
       targetX = THREE.MathUtils.lerp(0.08, 0.0, ease);
@@ -324,7 +641,6 @@ function Scene({ progressRef, presetAngle = 'isometric' }: SceneProps) {
       targetCamZ = THREE.MathUtils.lerp(5.2, 4.6, ease);
       cardOpacity = THREE.MathUtils.lerp(0.85, 0.0, ease);
     } else {
-      // 60-100%: camera pushes into screen, bezel zooms past viewport, Command Center fades in
       const t = (p - 0.6) / 0.4;
       const ease = t * t;
       targetX = 0.0;
@@ -339,45 +655,57 @@ function Scene({ progressRef, presetAngle = 'isometric' }: SceneProps) {
 
     cardsOpacityRef.current = cardOpacity;
 
-    // 60fps buttery smooth lerp interpolation without triggering React re-renders
-    groupRef.current.position.x = THREE.MathUtils.lerp(groupRef.current.position.x, targetX, 0.09);
-    groupRef.current.position.y = THREE.MathUtils.lerp(groupRef.current.position.y, targetY, 0.09);
-    groupRef.current.position.z = THREE.MathUtils.lerp(groupRef.current.position.z, targetZ, 0.09);
-    groupRef.current.rotation.x = THREE.MathUtils.lerp(groupRef.current.rotation.x, targetRotX, 0.09);
-    groupRef.current.rotation.y = THREE.MathUtils.lerp(groupRef.current.rotation.y, targetRotY, 0.09);
-    groupRef.current.rotation.z = THREE.MathUtils.lerp(groupRef.current.rotation.z, targetRotZ, 0.09);
+    // Apply delta-time spring dampening to all 3D transforms
+    groupRef.current.position.x = THREE.MathUtils.damp(groupRef.current.position.x, targetX, 5.5, dt);
+    groupRef.current.position.y = THREE.MathUtils.damp(groupRef.current.position.y, targetY + idleY, 5.5, dt);
+    groupRef.current.position.z = THREE.MathUtils.damp(groupRef.current.position.z, targetZ, 5.5, dt);
 
-    const nextScale = THREE.MathUtils.lerp(groupRef.current.scale.x, targetScale, 0.09);
+    groupRef.current.rotation.x = THREE.MathUtils.damp(groupRef.current.rotation.x, targetRotX + idleRotX, 5.5, dt);
+    groupRef.current.rotation.y = THREE.MathUtils.damp(groupRef.current.rotation.y, targetRotY + idleRotY, 5.5, dt);
+    groupRef.current.rotation.z = THREE.MathUtils.damp(groupRef.current.rotation.z, targetRotZ, 5.5, dt);
+
+    const currentScale = groupRef.current.scale.x;
+    const nextScale = THREE.MathUtils.damp(currentScale, targetScale, 5.5, dt);
     groupRef.current.scale.set(nextScale, nextScale, nextScale);
 
-    camera.position.z = THREE.MathUtils.lerp(camera.position.z, targetCamZ, 0.09);
+    camera.position.z = THREE.MathUtils.damp(camera.position.z, targetCamZ, 5.5, dt);
   });
 
   return (
     <>
-      {/* Lighting & Environment (Octane-Style Studio Lights) */}
-      <ambientLight intensity={0.75} />
-      <directionalLight position={[5, 8, 6]} intensity={1.7} castShadow />
-      <directionalLight position={[-5, 4, 3]} intensity={1.1} color="#CBD5E1" />
-      <directionalLight position={[-3, -2, -2]} intensity={0.5} color="#0070BA" />
+      {/* Cinematic Studio Lighting: Key, Rim, and Fill */}
+      <ambientLight intensity={0.9} />
+      <directionalLight position={[5, 8, 6]} intensity={2.4} castShadow />
+      <directionalLight position={[-6, 4, 3]} intensity={1.8} color="#38BDF8" />
+      <directionalLight position={[-2, -3, -2]} intensity={0.9} color="#0070BA" />
 
+      {/* Studio Environment Map */}
       <Environment preset="city" />
 
+      {/* Floating 3D Particle Swarm */}
+      <ParticleNebula />
+
+      {/* Electromagnetic Firewall Shockwave Rings */}
+      <ShockwaveRings triggerPulse={triggerPulse} />
+
       {/* Floating 3D Phone Assembly */}
-      <Float speed={1.4} rotationIntensity={0.06} floatIntensity={0.18}>
+      <Float speed={1.3} rotationIntensity={0.05} floatIntensity={0.14}>
         <group ref={groupRef}>
-          <PhoneAssembly hasCustomModel={hasCustomModel} cardsOpacityRef={cardsOpacityRef} />
+          <ExplodablePhone
+            cardsOpacityRef={cardsOpacityRef}
+            isExploded={isExploded}
+          />
         </group>
       </Float>
 
-      {/* Ground Contact Shadow with PayPal Navy/Blue Tint */}
+      {/* Ground Contact Shadow */}
       <ContactShadows
-        position={[0, -1.8, 0]}
-        opacity={0.55}
-        scale={8}
-        blur={2.2}
-        far={3.2}
-        color="#002C6C"
+        position={[0, -1.82, 0]}
+        opacity={0.65}
+        scale={7.5}
+        blur={2.4}
+        far={3.8}
+        color="#001838"
       />
     </>
   );
@@ -386,18 +714,33 @@ function Scene({ progressRef, presetAngle = 'isometric' }: SceneProps) {
 interface Hero3DCanvasProps {
   progressRef: React.MutableRefObject<number>;
   presetAngle?: 'isometric' | 'floating' | 'flat';
+  isExploded?: boolean;
+  triggerSpin?: number;
+  triggerPulse?: number;
 }
 
-export default function Hero3DCanvas({ progressRef, presetAngle = 'isometric' }: Hero3DCanvasProps) {
+export default function Hero3DCanvas({
+  progressRef,
+  presetAngle = 'isometric',
+  isExploded = false,
+  triggerSpin = 0,
+  triggerPulse = 0,
+}: Hero3DCanvasProps) {
   return (
     <div className="w-full h-full relative select-none">
       <Canvas
         shadows
         camera={{ position: [0, 0, 5.2], fov: 45 }}
-        gl={{ antialias: true, alpha: true }}
+        gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
         dpr={[1, 2]}
       >
-        <Scene progressRef={progressRef} presetAngle={presetAngle} />
+        <Scene
+          progressRef={progressRef}
+          presetAngle={presetAngle}
+          isExploded={isExploded}
+          triggerSpin={triggerSpin}
+          triggerPulse={triggerPulse}
+        />
       </Canvas>
     </div>
   );

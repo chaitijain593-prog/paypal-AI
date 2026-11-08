@@ -8,10 +8,25 @@ import PhoneScreenContent from '@/components/PhoneScreenContent';
 interface CSSPhoneHeroProps {
   progress?: MotionValue<number> | React.MutableRefObject<number>;
   presetAngle?: 'isometric' | 'floating' | 'flat';
+  triggerSpin?: number;
+  isExploded?: boolean;
 }
 
-export default function CSSPhoneHero({ presetAngle = 'isometric' }: CSSPhoneHeroProps) {
+export default function CSSPhoneHero({
+  presetAngle = 'isometric',
+  triggerSpin = 0,
+  isExploded = false,
+}: CSSPhoneHeroProps) {
   const [mouseOffset, setMouseOffset] = useState({ x: 0, y: 0 });
+  const [spinCount, setSpinCount] = React.useState(0);
+  const prevSpinRef = React.useRef(triggerSpin);
+
+  React.useEffect(() => {
+    if (triggerSpin > prevSpinRef.current) {
+      setSpinCount((prev) => prev + 1);
+      prevSpinRef.current = triggerSpin;
+    }
+  }, [triggerSpin]);
 
   const getBaseRotation = () => {
     switch (presetAngle) {
@@ -52,7 +67,8 @@ export default function CSSPhoneHero({ presetAngle = 'isometric' }: CSSPhoneHero
         className="relative w-full max-w-sm h-full flex items-center justify-center transition-transform duration-300 ease-out"
         style={{
           transformStyle: 'preserve-3d',
-          transform: `rotateX(${currentX}deg) rotateY(${currentY}deg) rotateZ(${base.z}deg)`,
+          transform: `rotateX(${currentX}deg) rotateY(${currentY + spinCount * 360}deg) rotateZ(${base.z}deg) scale(${isExploded ? 0.92 : 1})`,
+          transition: 'transform 1.2s cubic-bezier(0.2, 0.9, 0.3, 1)',
         }}
       >
         {/* Main Realistic Phone Frame */}

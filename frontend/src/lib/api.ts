@@ -73,6 +73,59 @@ export interface ApiCashFlowRunway {
   recommendation: string;
 }
 
+export interface ApiThreatMatch {
+  category: string;
+  pattern: string;
+  severity: string;
+  confidence: number;
+  description: string;
+}
+
+export interface ApiLiveAttackResult {
+  id: string;
+  attack_text: string;
+  is_threat: boolean;
+  risk_score: number;
+  threat_category: string;
+  quarantined: boolean;
+  sanitized_text: string;
+  defender_rebuttal: string;
+  confidence_score: number;
+  status: 'BLOCKED' | 'DEFENDED' | 'ESCALATED';
+  mitigation_action: string;
+  rule_citations: string[];
+  evidence_matches: { type: string; detail: string; verified: boolean }[];
+  processing_time_ms: number;
+  created_at: string;
+}
+
+export interface ApiGenerateProofRequest {
+  order_id: string;
+  dispute_id?: string;
+  evidence_type?: string;
+  carrier?: string;
+  tracking_number?: string;
+  buyer_name?: string;
+  latitude?: number;
+  longitude?: number;
+  delivery_address?: string;
+  use_zero_knowledge_predicates?: boolean;
+}
+
+export interface ApiGenerateProofResponse {
+  proof_id: string;
+  order_id: string;
+  merkle_root: string;
+  leaf_count: number;
+  leaf_hashes: string[];
+  proof_path: { direction: string; sibling: string; step: string }[];
+  zk_predicates_applied: string[];
+  status: string;
+  created_at: string;
+  proof_record: any;
+}
+
+
 export interface ApiProofRecord {
   id: string;
   dispute_id: string;
@@ -278,6 +331,16 @@ export const api = {
         num_rounds: params.num_rounds || 5,
       }),
     }),
+  evaluateAttack: (payload: {
+    attack_text: string;
+    dispute_type?: string;
+    order_id?: string;
+    attacker_strategy?: string;
+  }) =>
+    request<ApiLiveAttackResult>('/api/arena/evaluate-attack', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
 
   // Cash Flow Runway
   getCashFlowRunway: () => request<ApiCashFlowRunway>('/api/cashflow/runway'),
@@ -287,6 +350,12 @@ export const api = {
     request<{ count: number; proofs: ApiProofRecord[] }>('/api/proofs'),
   verifyProof: (proofId: string) =>
     request<ApiProofVerifyResult>(`/api/proofs/${proofId}/verify`),
+  generateProof: (payload: ApiGenerateProofRequest) =>
+    request<ApiGenerateProofResponse>('/api/proofs/generate', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
 
   // PayPal Sandbox
   getPayPalStatus: () =>
