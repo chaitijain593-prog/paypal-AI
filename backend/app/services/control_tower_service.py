@@ -400,8 +400,12 @@ class ControlTowerStore:
 
         # Dispatch via DisputeProvider
         provider = get_dispute_provider()
+        debug_id = None
+        response_json = None
         if isinstance(provider, SandboxDisputeProvider):
             res = await provider.provide_evidence(item.dispute_id, item.drafted_defense_letter)
+            debug_id = res.get("debug_id")
+            response_json = json.dumps(res.get("response") or res.get("error") or {})
             if res.get("status") == "SUCCESS":
                 paypal_api_status = f"PAYPAL_SANDBOX_SUBMITTED (HTTP {res.get('http_status', 200)})"
             else:
@@ -420,6 +424,8 @@ class ControlTowerStore:
             payload_hash=payload_hash,
             paypal_api_status=paypal_api_status,
             timestamp=now,
+            paypal_debug_id=debug_id,
+            paypal_response_json=response_json,
         )
 
         entry = AuditTrailEntry(
@@ -433,6 +439,8 @@ class ControlTowerStore:
             paypal_api_status=paypal_api_status,
             prev_hash=prev_hash,
             entry_hash=entry_hash,
+            paypal_debug_id=debug_id,
+            paypal_response_json=response_json,
         )
         item.audit_trail.append(entry)
         return item
@@ -476,8 +484,12 @@ class ControlTowerStore:
 
         # Dispatch via DisputeProvider
         provider = get_dispute_provider()
+        debug_id = None
+        response_json = None
         if isinstance(provider, SandboxDisputeProvider):
             res = await provider.provide_evidence(item.dispute_id, updated_defense_letter)
+            debug_id = res.get("debug_id")
+            response_json = json.dumps(res.get("response") or res.get("error") or {})
             if res.get("status") == "SUCCESS":
                 paypal_api_status = f"PAYPAL_SANDBOX_SUBMITTED (HTTP {res.get('http_status', 200)})"
             else:
@@ -495,6 +507,8 @@ class ControlTowerStore:
             payload_hash=payload_hash,
             paypal_api_status=paypal_api_status,
             timestamp=now,
+            paypal_debug_id=debug_id,
+            paypal_response_json=response_json,
         )
 
         entry = AuditTrailEntry(
@@ -508,6 +522,8 @@ class ControlTowerStore:
             paypal_api_status=paypal_api_status,
             prev_hash=prev_hash,
             entry_hash=entry_hash,
+            paypal_debug_id=debug_id,
+            paypal_response_json=response_json,
         )
         item.audit_trail.append(entry)
         return item
@@ -540,8 +556,12 @@ class ControlTowerStore:
 
         # Dispatch via DisputeProvider
         provider = get_dispute_provider()
+        debug_id = None
+        response_json = None
         if isinstance(provider, SandboxDisputeProvider):
             res = await provider.accept_claim(item.dispute_id, reviewer_notes)
+            debug_id = res.get("debug_id")
+            response_json = json.dumps(res.get("response") or res.get("error") or {})
             if res.get("status") == "SUCCESS":
                 paypal_api_status = f"PAYPAL_SANDBOX_CONCEDED (HTTP {res.get('http_status', 200)})"
             else:
@@ -559,6 +579,8 @@ class ControlTowerStore:
             payload_hash=payload_hash,
             paypal_api_status=paypal_api_status,
             timestamp=now,
+            paypal_debug_id=debug_id,
+            paypal_response_json=response_json,
         )
 
         entry = AuditTrailEntry(
@@ -572,6 +594,8 @@ class ControlTowerStore:
             paypal_api_status=paypal_api_status,
             prev_hash=prev_hash,
             entry_hash=entry_hash,
+            paypal_debug_id=debug_id,
+            paypal_response_json=response_json,
         )
         item.audit_trail.append(entry)
         return item

@@ -368,6 +368,8 @@ class AuditTrailEntry(BaseModel):
     paypal_api_status: str
     prev_hash: str | None = None
     entry_hash: str | None = None
+    paypal_debug_id: str | None = None
+    paypal_response_json: str | None = None
 
 
 class ControlTowerItem(BaseModel):

@@ -190,3 +190,177 @@ def test_audit_log_hash_chain_and_tamper_detection():
 
     # Clean up reset
     client.post("/api/control-tower/reset")
+
+
+# ── 5. MockTransport Tests for Exact PayPal Evidence & Claim Request Shapes ──
+
+@pytest.mark.anyio
+async def test_provide_evidence_exact_multipart_request_shape():
+    """Verify provide_evidence produces exact PayPal documented multipart/form-data shape."""
+    import json
+    import httpx
+    from app.services.paypal_client import PayPalClient
+
+    captured_requests: list[httpx.Request] = []
+
+    def handle_request(request: httpx.Request) -> httpx.Response:
+        captured_requests.append(request)
+        url_str = str(request.url)
+        if request.method == "GET" and "/v1/customer/disputes/PP-D-9988" in url_str:
+            return httpx.Response(
+                200,
+                json={"dispute_id": "PP-D-9988", "status": "WAITING_FOR_SELLER_RESPONSE"},
+                headers={"paypal-debug-id": "dbg-get-dispute-1"},
+            )
+        if request.method == "POST" and "/provide-evidence" in url_str:
+            return httpx.Response(
+                200,
+                json={"acknowledged": True},
+                headers={"paypal-debug-id": "dbg-evidence-9988"},
+            )
+        return httpx.Response(404)
+
+    test_client = PayPalClient()
+    test_client._access_token = "MOCK_VALID_TOKEN"
+    test_client._token_expires_at = 9999999999.0
+
+    mock_transport = httpx.MockTransport(handle_request)
+    orig_client = httpx.AsyncClient
+
+    with patch("httpx.AsyncClient", side_effect=lambda *args, **kwargs: orig_client(transport=mock_transport, timeout=kwargs.get("timeout"))):
+        res = await test_client.provide_evidence(
+            dispute_id="PP-D-9988",
+            notes="Carrier tracking confirmed delivery to buyer porch.",
+            evidence_type="PROOF_OF_FULFILLMENT",
+            tracking_info=[{"carrier_name": "FEDEX", "tracking_number": "782910482019"}],
+        )
+
+    assert res["status"] == "SUCCESS"
+    assert res["http_status"] == 200
+    assert res["debug_id"] == "dbg-evidence-9988"
+
+    # Assert request shape
+    evidence_req = [r for r in captured_requests if r.method == "POST" and "provide-evidence" in str(r.url)][0]
+    content_type = evidence_req.headers.get("content-type", "")
+    assert content_type.startswith("multipart/form-data")
+
+    # Read body bytes
+    body_text = evidence_req.content.decode("utf-8", errors="replace")
+    assert 'name="input"' in body_text
+    assert "application/json" in body_text
+
+    # Extract JSON part from multipart body
+    json_start = body_text.find('{"evidences":')
+    assert json_start != -1
+    json_end = body_text.rfind('}') + 1
+    input_data = json.loads(body_text[json_start:json_end])
+
+    assert len(input_data["evidences"]) == 1
+    ev = input_data["evidences"][0]
+    assert ev["evidence_type"] == "PROOF_OF_FULFILLMENT"
+    assert ev["notes"] == "Carrier tracking confirmed delivery to buyer porch."
+    assert ev["evidence_info"]["tracking_info"] == [{"carrier_name": "FEDEX", "tracking_number": "782910482019"}]
+
+
+@pytest.mark.anyio
+async def test_provide_evidence_status_check_and_type_validation():
+    """Verify provide_evidence rejects non-waiting disputes and invalid evidence types."""
+    import httpx
+    from app.services.paypal_client import PayPalClient
+
+    test_client = PayPalClient()
+    test_client._access_token = "MOCK_VALID_TOKEN"
+    test_client._token_expires_at = 9999999999.0
+
+    # 1. Invalid Evidence Type must raise ValueError
+    with pytest.raises(ValueError, match="Invalid evidence_type"):
+        await test_client.provide_evidence(
+            dispute_id="PP-D-1",
+            evidence_type="INVALID_NON_DOC_TYPE",
+            notes="Bad type",
+        )
+
+    # 2. Dispute in UNDER_REVIEW must be rejected
+    def handle_request(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={"dispute_id": "PP-D-1", "status": "UNDER_REVIEW"},
+            headers={"paypal-debug-id": "dbg-review-1"},
+        )
+
+    mock_transport = httpx.MockTransport(handle_request)
+    orig_client = httpx.AsyncClient
+    with patch("httpx.AsyncClient", side_effect=lambda *args, **kwargs: orig_client(transport=mock_transport, timeout=kwargs.get("timeout"))):
+        res = await test_client.provide_evidence(
+            dispute_id="PP-D-1",
+            evidence_type="PROOF_OF_FULFILLMENT",
+            notes="Valid note",
+        )
+        assert res["status"] == "ERROR"
+        assert res["http_status"] == 400
+        assert "UNDER_REVIEW" in res["message"]
+
+
+@pytest.mark.anyio
+async def test_accept_claim_body_check_and_validation():
+    """Verify accept_claim validates note length and sends exact JSON body."""
+    import json
+    import httpx
+    from app.services.paypal_client import PayPalClient
+
+    test_client = PayPalClient()
+    test_client._access_token = "MOCK_VALID_TOKEN"
+    test_client._token_expires_at = 9999999999.0
+
+    # 1. Note over 2000 chars must raise ValueError
+    long_note = "A" * 2001
+    with pytest.raises(ValueError, match="exceeds PayPal maximum limit of 2000"):
+        await test_client.accept_claim(dispute_id="PP-D-1", note=long_note)
+
+    # 2. Valid accept_claim
+    captured: list[httpx.Request] = []
+
+    def handle_request(request: httpx.Request) -> httpx.Response:
+        captured.append(request)
+        return httpx.Response(
+            200,
+            json={"status": "RESOLVED"},
+            headers={"paypal-debug-id": "dbg-concede-123"},
+        )
+
+    mock_transport = httpx.MockTransport(handle_request)
+    orig_client = httpx.AsyncClient
+    with patch("httpx.AsyncClient", side_effect=lambda *args, **kwargs: orig_client(transport=mock_transport, timeout=kwargs.get("timeout"))):
+        res = await test_client.accept_claim(
+            dispute_id="PP-D-1",
+            note="Merchant conceded claim to preserve relationship.",
+            accept_claim_reason="DID_NOT_RECEIVE_ITEM",
+        )
+
+    assert res["status"] == "SUCCESS"
+    assert res["debug_id"] == "dbg-concede-123"
+
+    req = captured[0]
+    payload = json.loads(req.content.decode("utf-8"))
+    assert payload["note"] == "Merchant conceded claim to preserve relationship."
+    assert payload["accept_claim_reason"] == "DID_NOT_RECEIVE_ITEM"
+
+
+@pytest.mark.anyio
+async def test_dispute_provider_extended_interface():
+    """Verify DisputeProvider Protocol includes create_order, capture_order, and add_tracking."""
+    from app.services.dispute_provider import DisputeProvider, SandboxDisputeProvider, SimulatedDisputeProvider
+
+    assert issubclass(SandboxDisputeProvider, DisputeProvider)
+    assert issubclass(SimulatedDisputeProvider, DisputeProvider)
+
+    sim = SimulatedDisputeProvider()
+    ord_res = await sim.create_order(100.0, "USD", "test_ref")
+    assert ord_res["id"].startswith("ORD-SIM-")
+
+    cap_res = await sim.capture_order(ord_res["id"])
+    assert cap_res["status"] == "COMPLETED"
+
+    trk_res = await sim.add_tracking(cap_res["id"], "1Z9999999999", "UPS")
+    assert trk_res["status"] == "SUCCESS"
+    assert trk_res["tracking_number"] == "1Z9999999999"

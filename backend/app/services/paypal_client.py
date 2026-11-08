@@ -8,6 +8,7 @@ Handles sandbox token exchange, Orders v2 inspection, and dispute synchronizatio
 from __future__ import annotations
 
 import base64
+import json
 import logging
 from datetime import datetime, timezone
 from typing import Any
@@ -27,6 +28,7 @@ settings = get_settings()
 
 
 class PayPalSandboxClient:
+    """Official PayPal Sandbox API v2 integration client."""
     """Official PayPal Sandbox API v2 integration client."""
 
     def __init__(self) -> None:
@@ -261,46 +263,90 @@ class PayPalSandboxClient:
             logger.error("Error fetching PayPal dispute %s: %s", dispute_id, e)
             return None
 
+    VALID_EVIDENCE_TYPES = frozenset({"PROOF_OF_FULFILLMENT", "PROOF_OF_REFUND", "OTHER"})
+
     async def provide_evidence(
         self,
         dispute_id: str,
-        evidence_type: str = "PROOF_OF_DELIVERY",
         notes: str = "",
+        evidence_type: str = "PROOF_OF_FULFILLMENT",
         tracking_info: list[dict[str, Any]] | None = None,
+        validate_status: bool = True,
     ) -> dict[str, Any]:
-        """Submit dispute defense evidence to PayPal Disputes API (POST /v1/customer/disputes/{id}/provide-evidence)."""
+        """
+        Submit dispute defense evidence to PayPal Disputes API
+        POST /v1/customer/disputes/{id}/provide-evidence
+        Payload is multipart/form-data with an `input` JSON part according to official PayPal API specifications.
+        """
+        if evidence_type not in self.VALID_EVIDENCE_TYPES:
+            raise ValueError(
+                f"Invalid evidence_type '{evidence_type}'. Must be one of: {sorted(self.VALID_EVIDENCE_TYPES)}"
+            )
+
         token = await self.get_access_token()
         if not token:
             return {"status": "ERROR", "message": "No PayPal access token available"}
 
-        headers = {
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json",
-        }
-        payload: dict[str, Any] = {
+        # 1. Check dispute status is WAITING_FOR_SELLER_RESPONSE first
+        if validate_status:
+            dispute = await self.get_dispute(dispute_id)
+            if not dispute:
+                return {"status": "ERROR", "message": f"Dispute {dispute_id} not found"}
+            status_val = dispute.get("status")
+            if status_val != "WAITING_FOR_SELLER_RESPONSE":
+                return {
+                    "status": "ERROR",
+                    "http_status": 400,
+                    "message": f"Dispute {dispute_id} is in status '{status_val}'. PayPal only accepts evidence in 'WAITING_FOR_SELLER_RESPONSE'.",
+                    "dispute_status": status_val,
+                }
+
+        # 2. Build input JSON part per PayPal's documented schema
+        evidence_entry: dict[str, Any] = {
             "evidence_type": evidence_type,
             "notes": notes,
         }
         if tracking_info:
-            payload["evidence_info"] = {"tracking_info": tracking_info}
+            evidence_entry["evidence_info"] = {"tracking_info": tracking_info}
+
+        input_payload = {"evidences": [evidence_entry]}
+        input_json_str = json.dumps(input_payload)
+
+        headers = {
+            "Authorization": f"Bearer {token}",
+        }
+        # httpx multipart/form-data with input JSON part
+        files = {
+            "input": (None, input_json_str, "application/json"),
+        }
 
         try:
             async with httpx.AsyncClient(timeout=15.0) as client:
                 res = await client.post(
                     f"{self.base_url}/v1/customer/disputes/{dispute_id}/provide-evidence",
                     headers=headers,
-                    json=payload,
+                    files=files,
                 )
+                debug_id = res.headers.get("paypal-debug-id", "")
+                res_content: Any = {}
+                if res.content:
+                    try:
+                        res_content = res.json()
+                    except Exception:
+                        res_content = res.text
+
                 if res.status_code in (200, 204):
                     return {
                         "status": "SUCCESS",
                         "http_status": res.status_code,
-                        "response": res.json() if res.content else {},
+                        "debug_id": debug_id,
+                        "response": res_content,
                     }
                 return {
                     "status": "ERROR",
                     "http_status": res.status_code,
-                    "error": res.text,
+                    "debug_id": debug_id,
+                    "error": res_content or res.text,
                 }
         except Exception as e:
             logger.error("Error submitting PayPal dispute evidence: %s", e)
@@ -310,8 +356,15 @@ class PayPalSandboxClient:
         self,
         dispute_id: str,
         note: str = "Conceded by merchant to waive fees",
+        accept_claim_reason: str | None = None,
     ) -> dict[str, Any]:
-        """Concede/accept dispute claim via PayPal Disputes API (POST /v1/customer/disputes/{id}/accept-claim)."""
+        """
+        Concede/accept dispute claim via PayPal Disputes API (POST /v1/customer/disputes/{id}/accept-claim).
+        Validates note length (max 2000 chars per PayPal docs).
+        """
+        if len(note) > 2000:
+            raise ValueError(f"Note length ({len(note)}) exceeds PayPal maximum limit of 2000 characters.")
+
         token = await self.get_access_token()
         if not token:
             return {"status": "ERROR", "message": "No PayPal access token available"}
@@ -320,7 +373,9 @@ class PayPalSandboxClient:
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json",
         }
-        payload = {"note": note}
+        payload: dict[str, Any] = {"note": note}
+        if accept_claim_reason:
+            payload["accept_claim_reason"] = accept_claim_reason
 
         try:
             async with httpx.AsyncClient(timeout=15.0) as client:
@@ -329,19 +384,89 @@ class PayPalSandboxClient:
                     headers=headers,
                     json=payload,
                 )
+                debug_id = res.headers.get("paypal-debug-id", "")
+                res_content: Any = {}
+                if res.content:
+                    try:
+                        res_content = res.json()
+                    except Exception:
+                        res_content = res.text
+
                 if res.status_code in (200, 204):
                     return {
                         "status": "SUCCESS",
                         "http_status": res.status_code,
-                        "response": res.json() if res.content else {},
+                        "debug_id": debug_id,
+                        "response": res_content,
                     }
                 return {
                     "status": "ERROR",
                     "http_status": res.status_code,
-                    "error": res.text,
+                    "debug_id": debug_id,
+                    "error": res_content or res.text,
                 }
         except Exception as e:
             logger.error("Error accepting PayPal dispute claim: %s", e)
+            return {"status": "ERROR", "message": str(e)}
+
+    async def add_tracking(
+        self,
+        transaction_id: str,
+        tracking_number: str,
+        carrier: str = "FEDEX",
+        status: str = "SHIPPED",
+    ) -> dict[str, Any]:
+        """
+        Submit shipment tracking to PayPal Shipping API (POST /v1/shipping/trackers-batch).
+        """
+        token = await self.get_access_token()
+        if not token:
+            return {"status": "ERROR", "message": "No PayPal access token available"}
+
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "trackers": [
+                {
+                    "transaction_id": transaction_id,
+                    "tracking_number": tracking_number,
+                    "status": status,
+                    "carrier": carrier,
+                }
+            ]
+        }
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                res = await client.post(
+                    f"{self.base_url}/v1/shipping/trackers-batch",
+                    headers=headers,
+                    json=payload,
+                )
+                debug_id = res.headers.get("paypal-debug-id", "")
+                res_content: Any = {}
+                if res.content:
+                    try:
+                        res_content = res.json()
+                    except Exception:
+                        res_content = res.text
+
+                if res.status_code in (200, 201, 204):
+                    return {
+                        "status": "SUCCESS",
+                        "http_status": res.status_code,
+                        "debug_id": debug_id,
+                        "response": res_content,
+                    }
+                return {
+                    "status": "ERROR",
+                    "http_status": res.status_code,
+                    "debug_id": debug_id,
+                    "error": res_content or res.text,
+                }
+        except Exception as e:
+            logger.error("Error submitting tracking to PayPal: %s", e)
             return {"status": "ERROR", "message": str(e)}
 
     async def verify_webhook_signature(
@@ -397,3 +522,4 @@ class PayPalSandboxClient:
 
 # Singleton instance
 paypal_client = PayPalSandboxClient()
+PayPalClient = PayPalSandboxClient

@@ -82,10 +82,22 @@ def init_db() -> None:
                 paypal_api_status TEXT NOT NULL,
                 prev_hash TEXT NOT NULL,
                 entry_hash TEXT NOT NULL,
+                paypal_debug_id TEXT,
+                paypal_response_json TEXT,
                 FOREIGN KEY (item_id) REFERENCES control_tower_items(id)
             )
         """)
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_audit_item_id ON audit_log(item_id)")
+
+        # Auto-migrate columns if table already existed
+        try:
+            cursor.execute("ALTER TABLE audit_log ADD COLUMN paypal_debug_id TEXT")
+        except Exception:
+            pass
+        try:
+            cursor.execute("ALTER TABLE audit_log ADD COLUMN paypal_response_json TEXT")
+        except Exception:
+            pass
 
         # 3. Webhook Events (Deduplicated by event_id)
         cursor.execute("""
@@ -247,9 +259,11 @@ def append_audit_log_entry(
     payload_hash: str,
     paypal_api_status: str,
     timestamp: datetime | None = None,
+    paypal_debug_id: str | None = None,
+    paypal_response_json: str | None = None,
 ) -> tuple[str, str]:
     """
-    Appends a new hash-chained audit log row.
+    Appends a new hash-chained audit log row with PayPal debug ID and response payload.
     Returns (prev_hash, entry_hash).
     """
     prev_hash = get_latest_audit_hash(item_id)
@@ -269,8 +283,9 @@ def append_audit_log_entry(
             """
             INSERT INTO audit_log (
                 item_id, timestamp, actor, action, previous_state, new_state,
-                reviewer_notes, payload_hash, paypal_api_status, prev_hash, entry_hash
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                reviewer_notes, payload_hash, paypal_api_status, prev_hash, entry_hash,
+                paypal_debug_id, paypal_response_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 item_id,
@@ -284,6 +299,8 @@ def append_audit_log_entry(
                 paypal_api_status,
                 prev_hash,
                 entry_hash,
+                paypal_debug_id,
+                paypal_response_json,
             ),
         )
         conn.commit()
