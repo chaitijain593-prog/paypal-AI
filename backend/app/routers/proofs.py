@@ -2,7 +2,9 @@
 
 from fastapi import APIRouter, HTTPException
 
+from app.models.schemas import GenerateProofRequest, GenerateProofResponse
 from app.services.proof_engine import (
+    generate_dynamic_merkle_proof,
     get_all_proofs,
     get_merkle_root,
     verify_proof_record,
@@ -21,6 +23,12 @@ def list_proofs():
         "algorithm": "SHA-256 Binary Merkle Tree",
         "proofs": proofs,
     }
+
+
+@router.post("/generate", response_model=GenerateProofResponse)
+def generate_proof(body: GenerateProofRequest):
+    """Dynamically generate a verified Merkle proof tree with Zero-Knowledge privacy predicates."""
+    return generate_dynamic_merkle_proof(body)
 
 
 @router.get("/{proof_id}/verify")

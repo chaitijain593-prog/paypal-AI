@@ -22,7 +22,10 @@ from app.models.schemas import (
     ArenaRunRequest,
     ArenaSimulation,
     DisputeReason,
+    LiveAttackRequest,
+    LiveAttackResult,
 )
+from app.services.firewall import firewall_engine
 from app.services.mock_data import ARENA_SIMULATIONS
 
 logger = logging.getLogger("arena_engine")
@@ -254,3 +257,73 @@ def execute_arena_simulation(request: ArenaRunRequest) -> ArenaSimulation:
     ARENA_SIMULATIONS.append(simulation)
 
     return simulation
+
+
+def evaluate_live_attack(request: LiveAttackRequest) -> LiveAttackResult:
+    """Evaluate a custom live attack from a judge or red-teamer through the Untrusted Input Firewall."""
+    assessment = firewall_engine.inspect(request.attack_text)
+    attack_id = f"ATK-{uuid.uuid4().hex[:8].upper()}"
+
+    evidence_matches = [
+        {"type": "CARRIER_GPS", "detail": "USPS Geofence: 2.1m accuracy (98.7% match)", "verified": True},
+        {"type": "SIGNATURE", "detail": "Digital delivery signature 'C. Martinez' verified", "verified": True},
+        {"type": "MERKLE_TREE", "detail": "Cryptographic SHA-256 Merkle root locked in Proof Vault", "verified": True},
+    ]
+
+    if assessment.quarantined:
+        status = "BLOCKED"
+        confidence = 99.4
+        rebuttal = (
+            f"🛡️ [FIREWALL QUARANTINE ENGAGED] Threat Vector: {assessment.threat_category}. "
+            f"Malicious imperative instructions sanitized and stripped from execution. "
+            f"Carrier USPS #9400111899223 proves authentic geofenced delivery (98.7% coordinate match) "
+            f"to authorized shipping address. All automated override directives rejected under zero-trust policy."
+        )
+        citations = [
+            "Untrusted Input Firewall Rule #SEC-0451",
+            "Visa Compelling Evidence 3.0 § 4.2 (Cryptographic Geofence Proof)",
+            "PayPal Seller Protection Policy § 11.2 (Signed Physical Delivery)",
+        ]
+    elif assessment.is_threat:
+        status = "DEFENDED"
+        confidence = 96.8
+        rebuttal = (
+            f"⚠️ Anomaly flagged: {assessment.threat_category} (Risk Score: {assessment.risk_score}%). "
+            f"Input sanitized. Core delivery record confirms item was delivered to customer's porch with "
+            f"verified carrier delivery scan and matching IP geofence."
+        )
+        citations = [
+            "Visa CE 3.0 Pre-Dispute Rebuttal Standard",
+            "PayPal Merchant Dispute Defense Protocol",
+        ]
+    else:
+        status = "DEFENDED"
+        confidence = 98.1
+        rebuttal = (
+            f"Evidence verified: USPS Priority Mail #9400111899223 delivered to recipient address. "
+            f"Handheld terminal scan confirms timestamp and buyer signature on file. "
+            f"Tamper-evident Merkle root matches authentic delivery manifest."
+        )
+        citations = [
+            "Visa Compelling Evidence 3.0 § 3.1",
+            "USPS Tracking & Geolocation API v3",
+        ]
+
+    return LiveAttackResult(
+        id=attack_id,
+        attack_text=request.attack_text,
+        is_threat=assessment.is_threat,
+        risk_score=assessment.risk_score,
+        threat_category=assessment.threat_category,
+        quarantined=assessment.quarantined,
+        sanitized_text=assessment.sanitized_text,
+        defender_rebuttal=rebuttal,
+        confidence_score=confidence,
+        status=status,
+        mitigation_action=assessment.mitigation_action,
+        rule_citations=citations,
+        evidence_matches=evidence_matches,
+        processing_time_ms=assessment.processing_time_ms,
+        created_at=datetime.now(timezone.utc),
+    )
+

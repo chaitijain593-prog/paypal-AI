@@ -261,3 +261,57 @@ class WebhookEvent(BaseModel):
     created_at: datetime
     status: str = "PROCESSED"
     payload_preview: dict[str, Any]
+
+
+# ── Live Attack & Dynamic Proof Models ──────────────────────────────────
+
+class LiveAttackRequest(BaseModel):
+    attack_text: str
+    dispute_type: DisputeReason = DisputeReason.ITEM_NOT_RECEIVED
+    order_id: str = "PP-7829-MNQR"
+    attacker_strategy: str = "custom_adversarial"
+
+
+class LiveAttackResult(BaseModel):
+    id: str
+    attack_text: str
+    is_threat: bool
+    risk_score: float
+    threat_category: str
+    quarantined: bool
+    sanitized_text: str
+    defender_rebuttal: str
+    confidence_score: float
+    status: str  # BLOCKED, DEFENDED, ESCALATED
+    mitigation_action: str
+    rule_citations: list[str]
+    evidence_matches: list[dict[str, Any]]
+    processing_time_ms: float
+    created_at: datetime
+
+
+class GenerateProofRequest(BaseModel):
+    order_id: str
+    dispute_id: str | None = None
+    evidence_type: str = "Delivery Confirmation & Geofence"
+    carrier: str = "USPS"
+    tracking_number: str = "9400111899223033005282"
+    buyer_name: str = "Carlos Martinez"
+    latitude: float = 30.2672
+    longitude: float = -97.7431
+    delivery_address: str = "123 Oak St, Austin, TX 78701"
+    use_zero_knowledge_predicates: bool = True
+
+
+class GenerateProofResponse(BaseModel):
+    proof_id: str
+    order_id: str
+    merkle_root: str
+    leaf_count: int
+    leaf_hashes: list[str]
+    proof_path: list[dict[str, str]]
+    zk_predicates_applied: list[str]
+    status: ProofStatus
+    created_at: datetime
+    proof_record: dict[str, Any]
+
