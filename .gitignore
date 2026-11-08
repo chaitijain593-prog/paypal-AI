@@ -37,4 +37,5 @@ backend/data/
 
 # Cryptographic private keys
 backend/keys/*.pem
+backend/app/keys/
 *.pem
