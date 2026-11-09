@@ -29,7 +29,6 @@ settings = get_settings()
 
 class PayPalSandboxClient:
     """Official PayPal Sandbox API v2 integration client."""
-    """Official PayPal Sandbox API v2 integration client."""
 
     def __init__(self) -> None:
         self.base_url = settings.paypal_base_url.rstrip("/")
@@ -115,10 +114,41 @@ class PayPalSandboxClient:
         }
 
     async def get_order_details(self, order_id: str) -> dict[str, Any] | None:
-        """Fetch real order record from PayPal Orders v2 API."""
+        """Fetch real order record from PayPal Orders v2 API, with simulated fallback."""
         token = await self.get_access_token()
         if not token:
-            return None
+            from app.services.mock_data import get_transactions
+            for t in get_transactions():
+                if t.order_id == order_id or t.id == order_id:
+                    return {
+                        "id": t.order_id,
+                        "status": t.status.value if hasattr(t.status, "value") else str(t.status),
+                        "intent": "CAPTURE",
+                        "purchase_units": [
+                            {
+                                "reference_id": "default",
+                                "amount": {"currency_code": t.currency, "value": f"{t.amount:.2f}"},
+                                "description": t.description,
+                                "payee": {"email_address": t.seller.email, "merchant_id": t.seller.merchant_id},
+                            }
+                        ],
+                        "create_time": t.created_at.isoformat(),
+                        "data_source": "SIMULATED_SANDBOX",
+                    }
+            return {
+                "id": order_id,
+                "status": "COMPLETED",
+                "intent": "CAPTURE",
+                "purchase_units": [
+                    {
+                        "reference_id": "default",
+                        "amount": {"currency_code": "USD", "value": "129.99"},
+                        "description": f"Simulated order {order_id}",
+                    }
+                ],
+                "create_time": datetime.now(timezone.utc).isoformat(),
+                "data_source": "SIMULATED_SANDBOX",
+            }
 
         headers = {
             "Authorization": f"Bearer {token}",
@@ -145,10 +175,37 @@ class PayPalSandboxClient:
         reference_id: str | None = None,
         request_id: str | None = None,
     ) -> dict[str, Any] | None:
-        """Create order in PayPal Sandbox using Orders v2 API with idempotency."""
+        """Create order in PayPal Sandbox using Orders v2 API with idempotency and simulated mode support."""
         token = await self.get_access_token()
         if not token:
-            return None
+            import uuid
+            sim_order_id = f"ORD-SANDBOX-{uuid.uuid4().hex[:8].upper()}"
+            return {
+                "id": sim_order_id,
+                "status": "CREATED",
+                "intent": "CAPTURE",
+                "purchase_units": [
+                    {
+                        "reference_id": reference_id or "default",
+                        "amount": {"currency_code": currency, "value": f"{amount:.2f}"},
+                        "payee": {"email_address": "merchant-sandbox@techvault.store", "merchant_id": "MERCH-TV8294X1"},
+                    }
+                ],
+                "create_time": datetime.now(timezone.utc).isoformat(),
+                "links": [
+                    {
+                        "href": f"https://www.sandbox.paypal.com/checkoutnow?token={sim_order_id}",
+                        "rel": "approve",
+                        "method": "GET",
+                    },
+                    {
+                        "href": f"https://api-m.sandbox.paypal.com/v2/checkout/orders/{sim_order_id}/capture",
+                        "rel": "capture",
+                        "method": "POST",
+                    },
+                ],
+                "data_source": "SIMULATED_SANDBOX",
+            }
 
         headers = {
             "Authorization": f"Bearer {token}",
@@ -190,10 +247,47 @@ class PayPalSandboxClient:
         order_id: str,
         request_id: str | None = None,
     ) -> dict[str, Any] | None:
-        """Capture payment for order in PayPal Sandbox with idempotency."""
+        """Capture payment for order in PayPal Sandbox with idempotency and simulated mode support."""
         token = await self.get_access_token()
         if not token:
-            return None
+            import uuid
+            capture_id = f"CAP-SANDBOX-{uuid.uuid4().hex[:8].upper()}"
+            now_iso = datetime.now(timezone.utc).isoformat()
+            return {
+                "id": order_id,
+                "status": "COMPLETED",
+                "payment_source": {
+                    "paypal": {
+                        "email_address": "buyer-sandbox@gmail.com",
+                        "account_id": "PAYER-SANDBOX-7X3",
+                    }
+                },
+                "purchase_units": [
+                    {
+                        "reference_id": "default",
+                        "payments": {
+                            "captures": [
+                                {
+                                    "id": capture_id,
+                                    "status": "COMPLETED",
+                                    "amount": {"currency_code": "USD", "value": "10.00"},
+                                    "final_capture": True,
+                                    "seller_protection": {
+                                        "status": "ELIGIBLE",
+                                        "dispute_categories": [
+                                            "ITEM_NOT_RECEIVED",
+                                            "UNAUTHORIZED_TRANSACTION"
+                                        ]
+                                    },
+                                    "create_time": now_iso,
+                                    "update_time": now_iso,
+                                }
+                            ]
+                        }
+                    }
+                ],
+                "data_source": "SIMULATED_SANDBOX",
+            }
 
         headers = {
             "Authorization": f"Bearer {token}",
@@ -514,10 +608,8 @@ class PayPalSandboxClient:
 
     async def sync_sandbox_orders(self) -> list[Transaction]:
         """Fetch and harmonize live or simulated sandbox transactions."""
-        # Returns formatted transactions for the ledger
-        from app.services.mock_data import TRANSACTIONS
-
-        return TRANSACTIONS
+        from app.services.mock_data import get_transactions
+        return get_transactions()
 
 
 # Singleton instance

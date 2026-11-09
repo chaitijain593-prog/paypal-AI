@@ -83,6 +83,24 @@ def health_check():
         "version": "1.0.0",
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "environment": settings.app_env,
+        "paypal_mode": settings.paypal_mode,
+        "ai_engine": {
+            "model": settings.ai_model,
+            "gemini_active": bool(settings.gemini_api_key),
+            "openai_active": bool(settings.openai_api_key),
+        },
+        "modules": [
+            "dashboard",
+            "transactions",
+            "disputes",
+            "arena",
+            "proofs",
+            "cashflow",
+            "webhooks",
+            "paypal_sandbox",
+            "control_tower",
+            "agent_commerce",
+        ],
     }
 
 
@@ -91,6 +109,9 @@ def health_check():
 def root():
     return {
         "message": "🛡️ PaySentinel AI Backend is running",
+        "hackathon": "PayPal AI Hackathon 2026",
         "docs": "/docs",
         "health": "/api/health",
+        "paypal_mode": settings.paypal_mode,
+        "ai_model": settings.ai_model,
     }

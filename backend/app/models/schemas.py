@@ -91,6 +91,9 @@ class Transaction(BaseModel):
     payment_method: str = "PayPal Balance"
     risk_score: float = Field(ge=0.0, le=100.0)
     data_source: Literal["LIVE", "SIMULATED"] = "SIMULATED"
+    type: str = "Product Sale"
+    has_dispute: bool = False
+    dispute_id: str | None = None
 
 
 # ── Dispute Models ─────────────────────────────────────────────────────────

@@ -113,6 +113,9 @@ TRANSACTIONS: list[Transaction] = [
         updated_at=_ts(days_ago=12),
         payment_method="PayPal Balance",
         risk_score=12.3,
+        type="Product Sale",
+        has_dispute=True,
+        dispute_id="PP-D-80001",
     ),
     Transaction(
         id="TXN-9FKR27D6WT8M",
@@ -127,6 +130,9 @@ TRANSACTIONS: list[Transaction] = [
         updated_at=_ts(days_ago=10),
         payment_method="Visa •••• 4242",
         risk_score=8.1,
+        type="Product Sale",
+        has_dispute=False,
+        dispute_id=None,
     ),
     Transaction(
         id="TXN-3QME61H9PC4V",
@@ -141,6 +147,9 @@ TRANSACTIONS: list[Transaction] = [
         updated_at=_ts(days_ago=8),
         payment_method="PayPal Credit",
         risk_score=15.7,
+        type="Product Sale",
+        has_dispute=True,
+        dispute_id="PP-D-80002",
     ),
     Transaction(
         id="TXN-7YLB45S2NA0X",
@@ -155,6 +164,9 @@ TRANSACTIONS: list[Transaction] = [
         updated_at=_ts(days_ago=7),
         payment_method="Mastercard •••• 5555",
         risk_score=3.2,
+        type="Product Sale",
+        has_dispute=True,
+        dispute_id="PP-D-80004",
     ),
     Transaction(
         id="TXN-1HGD89J0KE7R",
@@ -169,6 +181,9 @@ TRANSACTIONS: list[Transaction] = [
         updated_at=_ts(days_ago=5),
         payment_method="PayPal Balance",
         risk_score=22.6,
+        type="Product Sale",
+        has_dispute=False,
+        dispute_id=None,
     ),
     Transaction(
         id="TXN-6ZCT32W8FP1N",
@@ -183,6 +198,9 @@ TRANSACTIONS: list[Transaction] = [
         updated_at=_ts(days_ago=4),
         payment_method="Amex •••• 3782",
         risk_score=31.4,
+        type="Product Sale",
+        has_dispute=True,
+        dispute_id="PP-D-80003",
     ),
     Transaction(
         id="TXN-8VNA56Q4LM3B",
@@ -197,6 +215,9 @@ TRANSACTIONS: list[Transaction] = [
         updated_at=_ts(days_ago=2),
         payment_method="PayPal Balance",
         risk_score=5.8,
+        type="Product Sale",
+        has_dispute=True,
+        dispute_id="PP-D-80005",
     ),
     Transaction(
         id="TXN-2KPF70X1GS9C",
@@ -211,6 +232,9 @@ TRANSACTIONS: list[Transaction] = [
         updated_at=_ts(days_ago=2),
         payment_method="Visa •••• 1234",
         risk_score=18.9,
+        type="Product Sale",
+        has_dispute=False,
+        dispute_id=None,
     ),
     Transaction(
         id="TXN-4RJW18Y5DH6A",
@@ -225,6 +249,9 @@ TRANSACTIONS: list[Transaction] = [
         updated_at=_ts(days_ago=1),
         payment_method="PayPal Balance",
         risk_score=6.5,
+        type="Product Sale",
+        has_dispute=False,
+        dispute_id=None,
     ),
     Transaction(
         id="TXN-0BMS93U2VQ5E",
@@ -239,6 +266,9 @@ TRANSACTIONS: list[Transaction] = [
         updated_at=_ts(hours_ago=6),
         payment_method="Discover •••• 6011",
         risk_score=10.0,
+        type="Product Sale",
+        has_dispute=False,
+        dispute_id=None,
     ),
 ]
 
@@ -835,9 +865,11 @@ def verify_proof(proof_id: str) -> ProofVerifyResult | None:
 
 
 def get_cashflow_runway() -> CashFlowRunway:
-    open_disputes = [d for d in DISPUTES if d.outcome == DisputeOutcome.PENDING]
+    disputes = get_disputes()
+    transactions = get_transactions()
+    open_disputes = [d for d in disputes if d.outcome == DisputeOutcome.PENDING]
     total_disputed = sum(d.amount for d in open_disputes)
-    total_revenue = sum(t.amount for t in TRANSACTIONS if t.status == TransactionStatus.COMPLETED)
+    total_revenue = sum(t.amount for t in transactions if t.status == TransactionStatus.COMPLETED)
 
     monthly_revenue = 28_450.00
     monthly_expenses = 19_200.00
@@ -889,12 +921,14 @@ def get_cashflow_runway() -> CashFlowRunway:
 
 
 def get_dashboard_stats() -> DashboardStats:
-    total_txn = len(TRANSACTIONS)
-    total_rev = sum(t.amount for t in TRANSACTIONS if t.status == TransactionStatus.COMPLETED)
-    total_disputes = len(DISPUTES)
-    open_disputes = len([d for d in DISPUTES if d.outcome == DisputeOutcome.PENDING])
-    wins = len([d for d in DISPUTES if d.outcome == DisputeOutcome.SELLER_WINS])
-    resolved = len([d for d in DISPUTES if d.outcome != DisputeOutcome.PENDING])
+    transactions = get_transactions()
+    disputes = get_disputes()
+    total_txn = len(transactions)
+    total_rev = sum(t.amount for t in transactions if t.status == TransactionStatus.COMPLETED)
+    total_disputes = len(disputes)
+    open_disputes = len([d for d in disputes if d.outcome == DisputeOutcome.PENDING])
+    wins = len([d for d in disputes if d.outcome == DisputeOutcome.SELLER_WINS])
+    resolved = len([d for d in disputes if d.outcome != DisputeOutcome.PENDING])
     win_rate = wins / resolved if resolved > 0 else 0.0
 
     verified = len([p for p in PROOF_RECORDS if p.status == ProofStatus.VERIFIED])
@@ -912,7 +946,7 @@ def get_dashboard_stats() -> DashboardStats:
         dispute_rate=round(total_disputes / total_txn * 100, 1) if total_txn else 0.0,
         win_rate=round(win_rate * 100, 1),
         avg_resolution_days=6.5,
-        total_at_risk=round(sum(d.amount for d in DISPUTES if d.outcome == DisputeOutcome.PENDING), 2),
+        total_at_risk=round(sum(d.amount for d in disputes if d.outcome == DisputeOutcome.PENDING), 2),
         proofs_verified=verified,
         proofs_tampered=tampered,
         arena_simulations_run=len(ARENA_SIMULATIONS),

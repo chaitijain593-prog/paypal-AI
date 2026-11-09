@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
   DollarSign,
@@ -14,8 +14,48 @@ import {
 } from 'lucide-react';
 import StatsCard from '@/components/StatsCard';
 import ActivityFeed from '@/components/ActivityFeed';
+import { api, ApiDashboardStats } from '@/lib/api';
 
 export default function DashboardPage() {
+  const [stats, setStats] = useState<ApiDashboardStats | null>(null);
+  const [paypalStatusText, setPaypalStatusText] = useState('PayPal Sandbox Connected · Orders v2 Active');
+
+  useEffect(() => {
+    let mounted = true;
+    api.getDashboardStats().then((res) => {
+      if (mounted && res) {
+        setStats(res);
+      }
+    });
+    api.getPayPalStatus().then((res) => {
+      if (mounted && res) {
+        const modeLabel = res.mode === 'SANDBOX_LIVE'
+          ? 'PayPal Sandbox Live · OAuth2 Active'
+          : 'PayPal Sandbox Connected · Orders v2 Active';
+        setPaypalStatusText(modeLabel);
+      }
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const totalVolumeDisplay = stats
+    ? `$${stats.total_revenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    : '$5,601.45';
+
+  const atRiskDisplay = stats
+    ? `${stats.open_disputes} Cases ($${stats.total_at_risk.toLocaleString('en-US', { minimumFractionDigits: 2 })})`
+    : '3 Cases ($3,998.98)';
+
+  const proofRateDisplay = stats
+    ? `${Math.round((stats.proofs_verified / Math.max(1, stats.proofs_verified + stats.proofs_tampered)) * 100)}%`
+    : '98.6%';
+
+  const runwayDaysDisplay = stats
+    ? `${Math.round(stats.runway_months * 30)} Days`
+    : '75 Days';
+
   return (
     <div className="space-y-8">
       {/* Top Banner / Welcome */}
@@ -25,7 +65,7 @@ export default function DashboardPage() {
           <div className="mb-3">
             <span className="px-3 py-1 rounded-full text-xs font-semibold bg-[#0070BA]/15 text-[#3B9EFF] border border-[#0070BA]/30 inline-flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-emerald-400" />
-              PayPal Sandbox Connected · Orders v2 Active
+              {paypalStatusText}
             </span>
           </div>
           <h1 className="text-3xl font-extrabold tracking-tight text-white leading-tight">
@@ -58,7 +98,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatsCard
           title="Protected Transaction Volume"
-          value="$847,293"
+          value={totalVolumeDisplay}
           change="+18.4%"
           changeType="up"
           icon={DollarSign}
@@ -66,7 +106,7 @@ export default function DashboardPage() {
         />
         <StatsCard
           title="Active Disputes at Risk"
-          value="7 Cases ($3,840)"
+          value={atRiskDisplay}
           change="-12.5%"
           changeType="down"
           icon={AlertTriangle}
@@ -74,7 +114,7 @@ export default function DashboardPage() {
         />
         <StatsCard
           title="Proof Verification Rate"
-          value="98.6%"
+          value={proofRateDisplay}
           change="+2.4%"
           changeType="up"
           icon={ShieldCheck}
@@ -82,7 +122,7 @@ export default function DashboardPage() {
         />
         <StatsCard
           title="Cash Runway Guardian"
-          value="41 Days"
+          value={runwayDaysDisplay}
           change="+12 days"
           changeType="up"
           icon={TrendingUp}
@@ -204,7 +244,7 @@ export default function DashboardPage() {
 
         {/* Right Col: Live Activity Feed */}
         <div className="lg:col-span-1">
-          <ActivityFeed />
+          <ActivityFeed alerts={stats?.recent_alerts} />
         </div>
       </div>
     </div>

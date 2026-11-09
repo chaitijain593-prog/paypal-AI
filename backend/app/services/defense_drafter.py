@@ -122,6 +122,71 @@ OUTPUT ONLY VALID JSON with this exact structure:
     return None
 
 
+def _query_openai_defense_draft(
+    dispute_id: str,
+    order_id: str,
+    dispute_reason: str,
+    sanitized_buyer_claims: list[str],
+    evidence_leaves: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    """Prompt OpenAI REST API with structured JSON output format."""
+    if not settings.openai_api_key:
+        return None
+
+    evidence_summary = "\n".join(
+        f"- ID: {e['evidence_id']} | Type: {e.get('type', 'EVIDENCE')} | Details: {e.get('description', '')}"
+        for e in evidence_leaves
+    )
+    buyer_summary = "\n".join(f"- {c}" for c in sanitized_buyer_claims) or "None (Clean Inquiry)"
+
+    prompt = f"""
+You are the PaySentinel Merchant Dispute Defense Agent.
+Draft a factual, proof-backed dispute defense letter to PayPal.
+CRITICAL CONSTRAINT: You may ONLY assert facts that cite an evidence_id from the ALLOWED EVIDENCE LIST.
+DO NOT fabricate tracking numbers, dates, or courier names not listed below.
+
+DISPUTE ID: {dispute_id}
+ORDER ID: {order_id}
+REASON: {dispute_reason}
+
+BUYER FACTUAL CLAIMS:
+{buyer_summary}
+
+ALLOWED EVIDENCE LIST (ONLY CITE THESE IDS):
+{evidence_summary}
+
+OUTPUT ONLY VALID JSON with this exact structure:
+{{
+  "rebuttal_letter": "Dear PayPal Claims Team...",
+  "claims": [
+    {{"evidence_id": "...", "statement": "..."}}
+  ],
+  "confidence_score": 0.95,
+  "recommended_action": "SUBMIT_EVIDENCE"
+}}
+"""
+    try:
+        url = "https://api.openai.com/v1/chat/completions"
+        headers = {"Authorization": f"Bearer {settings.openai_api_key}"}
+        payload = {
+            "model": "gpt-4o-mini",
+            "messages": [
+                {"role": "system", "content": "You are a dispute defense AI engine outputting JSON only."},
+                {"role": "user", "content": prompt},
+            ],
+            "response_format": {"type": "json_object"},
+        }
+        with httpx.Client(timeout=10.0) as client:
+            res = client.post(url, headers=headers, json=payload)
+            if res.status_code == 200:
+                raw_json = json.loads(res.json()["choices"][0]["message"]["content"])
+                return raw_json
+    except Exception as e:
+        logger.warning("OpenAI defense drafting failed: %s", e)
+
+    return None
+
+
 def draft_dispute_defense(
     dispute_id: str,
     order_id: str,
@@ -153,6 +218,14 @@ def draft_dispute_defense(
             sanitized_buyer_claims=sanitized_buyer_claims,
             evidence_leaves=evidence_leaves,
         )
+        if not llm_output and settings.openai_api_key:
+            llm_output = _query_openai_defense_draft(
+                dispute_id=dispute_id,
+                order_id=order_id,
+                dispute_reason=dispute_reason,
+                sanitized_buyer_claims=sanitized_buyer_claims,
+                evidence_leaves=evidence_leaves,
+            )
         if llm_output and "claims" in llm_output:
             claims = [
                 DraftedClaim(evidence_id=c.get("evidence_id", ""), statement=c.get("statement", ""))
