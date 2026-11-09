@@ -9,6 +9,8 @@ client = TestClient(app)
 AUTH = {"Authorization": "Bearer tok_senior_risk_001"}
 
 def test_control_tower_lifecycle():
+    # Ensure fresh initial state
+    client.post("/api/control-tower/reset", headers=AUTH)
     print(">>> 1. Testing GET /api/control-tower/pending...")
     res = client.get("/api/control-tower/pending")
     assert res.status_code == 200, f"Expected 200, got {res.status_code}"

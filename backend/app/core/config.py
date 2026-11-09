@@ -43,6 +43,7 @@ class Settings:
 
     # Webhook
     paypal_webhook_id: str = os.getenv("PAYPAL_WEBHOOK_ID", "")
+    allow_unsigned_webhooks: bool = os.getenv("ALLOW_UNSIGNED_WEBHOOKS", "false").lower() == "true"
 
 
 @lru_cache

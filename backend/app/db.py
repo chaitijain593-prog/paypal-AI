@@ -152,6 +152,14 @@ def init_db() -> None:
             cursor.execute("ALTER TABLE disputes ADD COLUMN payload_json TEXT")
         except Exception:
             pass
+        try:
+            cursor.execute("ALTER TABLE webhook_events ADD COLUMN error_message TEXT")
+        except Exception:
+            pass
+        try:
+            cursor.execute("ALTER TABLE webhook_events ADD COLUMN updated_at TEXT")
+        except Exception:
+            pass
 
         # 3. Webhook Events (Deduplicated by event_id)
         cursor.execute("""
@@ -265,11 +273,109 @@ def verify_audit_hash_chain(item_id: str) -> tuple[bool, str]:
 
 
 def is_duplicate_webhook(event_id: str) -> bool:
-    """Checks whether a webhook event has already been recorded in SQLite."""
+    """Checks whether a webhook event has already been successfully processed in SQLite."""
     with get_db_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT 1 FROM webhook_events WHERE event_id = ?", (event_id,))
-        return cursor.fetchone() is not None
+        cursor.execute("SELECT status FROM webhook_events WHERE event_id = ?", (event_id,))
+        row = cursor.fetchone()
+        if not row:
+            return False
+        return row["status"] == "PROCESSED"
+
+
+def record_webhook_event_processing(
+    event_id: str,
+    event_type: str,
+    resource_type: str | None,
+    summary: str | None,
+    payload: dict[str, Any],
+    data_source: str = "LIVE",
+) -> bool:
+    """
+    Records or updates a webhook event in PROCESSING status.
+    Returns:
+      True: if the event is new OR currently in FAILED status (eligible for retry).
+      False: if the event is already in PROCESSED status (replay / duplicate).
+    """
+    now = datetime.now(timezone.utc).isoformat()
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT status FROM webhook_events WHERE event_id = ?", (event_id,))
+        row = cursor.fetchone()
+        if row:
+            if row["status"] == "PROCESSED":
+                return False
+            cursor.execute(
+                """
+                UPDATE webhook_events
+                SET status = 'PROCESSING', error_message = NULL, updated_at = ?
+                WHERE event_id = ?
+                """,
+                (now, event_id),
+            )
+            conn.commit()
+            return True
+        else:
+            cursor.execute(
+                """
+                INSERT INTO webhook_events (
+                    event_id, event_type, resource_type, summary, payload_json,
+                    status, data_source, created_at, updated_at, error_message
+                ) VALUES (?, ?, ?, ?, ?, 'PROCESSING', ?, ?, ?, NULL)
+                """,
+                (
+                    event_id,
+                    event_type,
+                    resource_type or "",
+                    summary or "",
+                    json.dumps(payload),
+                    data_source,
+                    now,
+                    now,
+                ),
+            )
+            conn.commit()
+            return True
+
+
+def mark_webhook_event_status(
+    event_id: str,
+    status: str,
+    error_message: str | None = None,
+) -> None:
+    """Updates the status and optional error message of a webhook event."""
+    now = datetime.now(timezone.utc).isoformat()
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            UPDATE webhook_events
+            SET status = ?, error_message = ?, updated_at = ?
+            WHERE event_id = ?
+            """,
+            (status, error_message, now, event_id),
+        )
+        conn.commit()
+
+
+def get_webhook_event(event_id: str) -> dict[str, Any] | None:
+    """Fetches a webhook event by ID from SQLite."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM webhook_events WHERE event_id = ?", (event_id,))
+        row = cursor.fetchone()
+        if not row:
+            return None
+        return dict(row)
+
+
+def load_webhook_events_from_db() -> list[dict[str, Any]]:
+    """Loads all webhook events from SQLite in reverse chronological order."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM webhook_events ORDER BY created_at DESC")
+        rows = cursor.fetchall()
+        return [dict(r) for r in rows]
 
 
 def record_webhook_event(
@@ -281,7 +387,7 @@ def record_webhook_event(
     data_source: str = "LIVE",
 ) -> bool:
     """
-    Records a webhook event with deduplication.
+    Records a webhook event directly in PROCESSED status with deduplication.
     Returns True if inserted, False if duplicate.
     """
     now = datetime.now(timezone.utc).isoformat()
@@ -290,8 +396,8 @@ def record_webhook_event(
             cursor = conn.cursor()
             cursor.execute(
                 """
-                INSERT INTO webhook_events (event_id, event_type, resource_type, summary, payload_json, status, data_source, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO webhook_events (event_id, event_type, resource_type, summary, payload_json, status, data_source, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     event_id,
@@ -301,6 +407,7 @@ def record_webhook_event(
                     json.dumps(payload),
                     "PROCESSED",
                     data_source,
+                    now,
                     now,
                 ),
             )
