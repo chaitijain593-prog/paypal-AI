@@ -207,9 +207,10 @@ def test_fork_prevention_unique_constraint():
 
 def test_truncation_detection_against_audit_heads():
     """Deleting the latest row from audit_log causes verify_audit_hash_chain to detect truncation."""
+    import uuid
     from app.db import append_audit_log_entry
 
-    test_item_id = "CT-TRUNC-TEST"
+    test_item_id = f"CT-TRUNC-{uuid.uuid4().hex[:8]}"
     # 1. Create two audit entries for a dedicated test item
     append_audit_log_entry(
         item_id=test_item_id,

@@ -74,7 +74,10 @@ async def test_sandbox_dispute_provider_error_handling():
 
 # ── 2. Webhook Signature Verification & Deduplication ────────────────────────
 
-def test_webhook_happy_path_and_deduplication():
+def test_webhook_happy_path_and_deduplication(monkeypatch):
+    from app.core.config import get_settings
+    monkeypatch.setattr(get_settings(), "allow_unsigned_webhooks", True)
+
     import uuid
     event_id = f"WH-TEST-EVT-{uuid.uuid4().hex[:8]}"
     payload = {

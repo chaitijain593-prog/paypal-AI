@@ -413,6 +413,25 @@ class ControlTowerStore:
     def get_item(self, item_id: str) -> ControlTowerItem | None:
         return self._items.get(item_id)
 
+    def create_item(self, item: ControlTowerItem) -> ControlTowerItem:
+        """Adds a newly ingested dispute to the Control Tower in-memory store and SQLite."""
+        self._items[item.id] = item
+        save_control_tower_item(item)
+        if item.audit_trail:
+            first = item.audit_trail[0]
+            append_audit_log_entry(
+                item_id=item.id,
+                actor=first.actor,
+                action=first.action,
+                previous_state=first.previous_state,
+                new_state=first.new_state,
+                reviewer_notes=first.reviewer_notes,
+                payload_hash=first.payload_hash,
+                paypal_api_status=first.paypal_api_status,
+                timestamp=first.timestamp,
+            )
+        return item
+
     async def approve_item(
         self,
         item_id: str,
