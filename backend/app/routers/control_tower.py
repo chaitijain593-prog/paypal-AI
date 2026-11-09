@@ -134,6 +134,7 @@ async def edit_control_tower_item(
             reviewer_name=reviewer.identity,
             reviewer_role=reviewer.role,
             reviewer_notes=body.reviewer_notes,
+            submit=body.submit,
         )
         return updated
     except MakerCheckerError as e:

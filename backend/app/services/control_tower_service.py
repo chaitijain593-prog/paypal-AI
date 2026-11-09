@@ -30,6 +30,7 @@ from app.models.schemas import (
     ControlTowerItem,
     ControlTowerStatus,
     ControlTowerSummaryKPI,
+    DraftStatus,
     ProofClaim,
 )
 from app.services.dispute_provider import SandboxDisputeProvider, get_dispute_provider
@@ -456,6 +457,13 @@ class ControlTowerStore:
                 f"Senior approval required ({', '.join(sorted(senior_roles))}), but reviewer has role '{reviewer_role}'."
             )
 
+        # Draft validity constraint
+        letter_clean = (item.drafted_defense_letter or "").strip()
+        if not letter_clean or letter_clean == "LLM_UNAVAILABLE" or item.draft_status not in (DraftStatus.DRAFT_VALID, DraftStatus.HUMAN_AUTHORED):
+            raise ValueError(
+                f"Cannot approve item '{item_id}': draft_status is '{item.draft_status.value}' and letter is invalid or unavailable."
+            )
+
         # Allow submission only from PENDING_REVIEW or retrying from FAILED
         if item.status not in (ControlTowerStatus.PENDING_REVIEW, ControlTowerStatus.FAILED):
             raise ValueError(f"Item {item_id} is already in state '{item.status.value}' and cannot be approved.")
@@ -587,12 +595,64 @@ class ControlTowerStore:
         reviewer_name: str,
         reviewer_notes: str,
         reviewer_role: str = "SENIOR_RISK_OFFICER",
+        submit: bool = True,
     ) -> ControlTowerItem:
         item = self._items.get(item_id)
         if not item:
             raise KeyError(f"Control Tower item {item_id} not found.")
 
-        # Maker-Checker Constraint
+        if item.status not in (ControlTowerStatus.PENDING_REVIEW, ControlTowerStatus.FAILED):
+            raise ValueError(f"Item {item_id} is already in state '{item.status.value}' and cannot be edited.")
+
+        if not updated_defense_letter.strip():
+            raise ValueError("Updated defense letter cannot be blank.")
+
+        now = datetime.now(timezone.utc)
+        prev_state = item.status.value
+
+        # If submit=False, this is a human drafting / revision action
+        if not submit:
+            item.drafted_defense_letter = updated_defense_letter
+            item.draft_status = DraftStatus.HUMAN_AUTHORED
+            item.creator_name = reviewer_name  # Record author so checker cannot be maker
+            if updated_action:
+                try:
+                    item.ai_recommended_action = AIRecommendedAction(updated_action)
+                except ValueError:
+                    pass
+
+            item.updated_at = now
+            audit_note = f"Human reviewer edited defense draft. Notes: {reviewer_notes}"
+            payload_hash = _sha256(f"{updated_defense_letter}|{now.isoformat()}|{reviewer_name}")
+            prev_hash, entry_hash = append_audit_log_entry(
+                item_id=item.id,
+                actor=reviewer_name,
+                action="DRAFT_EDITED",
+                previous_state=prev_state,
+                new_state=item.status.value,
+                reviewer_notes=audit_note,
+                payload_hash=payload_hash,
+                paypal_api_status="PENDING_REVIEW",
+                timestamp=now,
+            )
+            item.audit_trail.append(
+                AuditTrailEntry(
+                    timestamp=now,
+                    actor=reviewer_name,
+                    action="DRAFT_EDITED",
+                    previous_state=prev_state,
+                    new_state=item.status.value,
+                    reviewer_notes=audit_note,
+                    payload_hash=payload_hash,
+                    paypal_api_status="PENDING_REVIEW",
+                    prev_hash=prev_hash,
+                    entry_hash=entry_hash,
+                )
+            )
+            save_control_tower_item(item)
+            return item
+
+        # If submit=True, enforce maker-checker and senior roles
         if reviewer_name and reviewer_name.strip().lower() == item.creator_name.strip().lower():
             raise MakerCheckerError("Maker cannot be checker: reviewer must be different from item creator")
 
@@ -618,6 +678,7 @@ class ControlTowerStore:
         prev_state = item.status.value
 
         item.drafted_defense_letter = updated_defense_letter
+        item.draft_status = DraftStatus.HUMAN_AUTHORED
         if updated_action:
             try:
                 item.ai_recommended_action = AIRecommendedAction(updated_action)

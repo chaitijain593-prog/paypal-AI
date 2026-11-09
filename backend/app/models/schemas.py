@@ -350,6 +350,13 @@ class GenerateProofResponse(BaseModel):
 
 # ── Human Control Tower & Approval Queue Models (Feature 4) ───────────────
 
+class DraftStatus(str, Enum):
+    DRAFT_VALID = "DRAFT_VALID"
+    DRAFT_FAILED = "DRAFT_FAILED"
+    NO_EVIDENCE = "NO_EVIDENCE"
+    HUMAN_AUTHORED = "HUMAN_AUTHORED"
+
+
 class ControlTowerStatus(str, Enum):
     PENDING_REVIEW = "PENDING_REVIEW"
     SUBMITTING = "SUBMITTING"
@@ -409,6 +416,8 @@ class ControlTowerItem(BaseModel):
     ai_recommended_action: AIRecommendedAction
     ai_rationale: str
     drafted_defense_letter: str
+    draft_status: DraftStatus = DraftStatus.DRAFT_VALID
+    auto_pilot: bool = True
     proof_claims: list[ProofClaim] = Field(default_factory=list)
     buyer_raw_message: str
     firewall_injection_flagged: bool = False
@@ -432,6 +441,7 @@ class ControlTowerEditRequest(BaseModel):
     updated_action: str | None = None
     reviewer_name: str = "Merchant Admin"
     reviewer_notes: str = Field(..., min_length=1)
+    submit: bool = True
 
 
 class ControlTowerRejectRequest(BaseModel):
