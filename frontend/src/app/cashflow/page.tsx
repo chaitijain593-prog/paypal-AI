@@ -74,11 +74,14 @@ export default function CashFlowPage() {
       {/* Page Header */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 pb-6 border-b border-white/[0.06]">
         <div>
-          {/* Exactly ONE status badge per page header */}
-          <div className="mb-3">
+          {/* Status badges */}
+          <div className="mb-3 flex items-center gap-2">
             <span className="px-3 py-1 rounded-full text-xs font-semibold bg-[#0070BA]/15 text-[#3B9EFF] border border-[#0070BA]/30 inline-flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-emerald-400" />
               Cash-Flow Runway Guardian Synced
+            </span>
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">
+              DATA: {liveRunway?.data_source || 'SIMULATED'}
             </span>
           </div>
           <h1 className="text-3xl font-extrabold tracking-tight text-white leading-tight">
@@ -145,7 +148,7 @@ export default function CashFlowPage() {
               <Sparkles className="w-4 h-4" /> PaySentinel Intelligence
             </div>
             <p className="text-sm text-slate-300 leading-relaxed">
-              Your operational runway is being restricted by <strong className="text-rose-400 font-semibold">$3,840 held across 7 PayPal disputes</strong>. Submitting proof using our Visa CE 3.0 engine restores working capital immediately.
+              Your operational runway is being restricted by <strong className="text-rose-400 font-semibold">$3,840 held across 7 PayPal disputes</strong>. Submitting proof using our Seller Protection engine restores working capital immediately.
             </p>
             <div className="pt-3 border-t border-white/[0.06] flex items-center justify-between text-xs">
               <span className="text-slate-400">Restorable Capital:</span>
@@ -247,7 +250,7 @@ export default function CashFlowPage() {
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-sm font-semibold text-white truncate">
-                  Automate Visa CE 3.0 Defense for 7 Disputes
+                  Automate Seller Protection Defense for 7 Disputes
                 </p>
                 <span className="text-xs font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded shrink-0">
                   +12 Days

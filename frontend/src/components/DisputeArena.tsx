@@ -298,6 +298,9 @@ export default function DisputeArena() {
               ? 'FastAPI Backend Connected (:8000/api/arena)'
               : 'Standby / Live Pipeline Ready'}
           </span>
+          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">
+            DATA: {backendConnected ? 'LIVE' : 'SIMULATED'}
+          </span>
         </div>
       </div>
 

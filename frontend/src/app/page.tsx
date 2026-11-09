@@ -599,12 +599,14 @@ export default function StartingPage() {
 
               <div className="max-w-4xl w-full p-8 rounded-2xl bg-[#121826] border border-white/[0.1] shadow-2xl text-center space-y-6">
 
-                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#0070BA]/20 border border-[#0070BA]/35 text-xs text-[#3B9EFF] font-semibold">
-
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-
-                  Inside Merchant Command Center
-
+                <div className="flex items-center justify-center gap-2">
+                  <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#0070BA]/20 border border-[#0070BA]/35 text-xs text-[#3B9EFF] font-semibold">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    Inside Merchant Command Center
+                  </div>
+                  <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                    DATA: SIMULATED
+                  </span>
                 </div>
 
                 <h2 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
@@ -615,7 +617,7 @@ export default function StartingPage() {
 
                 <p className="text-slate-300 max-w-xl mx-auto text-sm leading-relaxed">
 
-                  You have zoomed straight into the PaySentinel merchant cockpit. Real-time Visa CE 3.0 dispute rebuttals and Orders v2 autonomous settlement are live.
+                  You have zoomed straight into the PaySentinel merchant cockpit. Real-time PayPal dispute rebuttals and Orders v2 autonomous settlement are live.
 
                 </p>
 
@@ -633,7 +635,7 @@ export default function StartingPage() {
 
                   <div className="p-4 rounded-xl bg-white/[0.03] border border-white/[0.06]">
 
-                    <p className="text-xs text-slate-400">CE 3.0 Proof Rate</p>
+                    <p className="text-xs text-slate-400">Evidence Proof Rate</p>
 
                     <p className="text-2xl font-bold text-emerald-400 mt-1 tabular-nums">98.6%</p>
 
@@ -837,7 +839,7 @@ export default function StartingPage() {
 
               <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-semibold">
 
-                Visa CE 3.0
+                Seller Protection
 
               </span>
 

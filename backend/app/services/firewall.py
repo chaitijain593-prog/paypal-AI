@@ -212,7 +212,7 @@ AUTHORITY_SPOOFING_PATTERNS: list[tuple[str, str, float, str]] = [
 
 
 class UntrustedInputFirewall:
-    """Production-grade defense firewall for dispute and chargeback intake."""
+    """Hardened defense firewall for dispute and chargeback intake."""
 
     def __init__(self) -> None:
         self.injection_rules = [

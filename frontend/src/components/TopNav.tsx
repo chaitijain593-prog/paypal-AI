@@ -16,7 +16,7 @@ const pageTitles: Record<string, { title: string; subtitle: string }> = {
   '/dashboard': { title: 'Merchant Command Center', subtitle: 'Dispute defense, agentic commerce & risk monitoring' },
   '/arena': { title: 'Dispute Arena', subtitle: 'Adversarial AI red-team simulations & prompt injection firewall' },
   '/transactions': { title: 'Transactions Ledger', subtitle: 'PayPal Sandbox orders, dispute drill-downs & logs' },
-  '/proofs': { title: 'Proof Vault', subtitle: 'SHA-256 Merkle proof chain & Visa CE 3.0 evidence ledger' },
+  '/proofs': { title: 'Proof Vault', subtitle: 'SHA-256 Merkle proof chain & Seller Protection evidence ledger' },
   '/cashflow': { title: 'Runway Guardian', subtitle: 'Real-time liquidity impact modeling & capital recovery simulator' },
 };
 

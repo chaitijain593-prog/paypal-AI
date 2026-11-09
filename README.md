@@ -45,7 +45,7 @@ Every year, merchants lose **$117B+** to chargebacks and fraudulent disputes. Cu
 │                                                      │
 │   🔐 Proof-Carrying Evidence Layer                   │
 │   ├── SHA-256 Merkle proof trees                     │
-│   ├── Visa Compelling Evidence 3.0 compliance        │
+│   ├── PayPal Seller Protection compliance            │
 │   └── Tamper-evident audit trail                     │
 │                                                      │
 │   📊 Financial Intelligence Layer                    │
@@ -211,11 +211,13 @@ To maintain absolute transparency and integrity, PaySentinel AI clearly separate
 | :--- | :--- | :--- |
 | **PayPal Sandbox Authentication** | **LIVE (Conditional)** | Real OAuth2 client credentials exchange with `https://api-m.sandbox.paypal.com/v1/oauth2/token`. |
 | **PayPal Orders v2 Lookups** | **LIVE (Conditional)** | Calls live PayPal Sandbox Orders API `GET /v2/checkout/orders/{id}` when credentials are configured. |
-| **Merkle Tree Proof Verification** | **LIVE (Algorithmic)** | Real deterministic SHA-256 Merkle tree calculation; rejects invalid proofs and detects leaf tampering. |
-| **Untrusted Message Firewall** | **LIVE (Deterministic)** | Real regex and pattern isolation scanner rejecting prompt injections (`IGNORE PREVIOUS`, system leaks). |
-| **Arena LLM Red-Teaming** | **LIVE / SCRIPTED** | Calls Google Gemini REST API when `GEMINI_API_KEY` is present; falls back to deterministic rule engine if absent. |
-| **Control Tower Queue Actions** | **SIMULATED** | State machine with deterministic audit logs; dispatches marked `SIMULATED_NOT_SENT` until real sandbox dispute loop is connected. |
-| **Dispute & Transaction Feeds** | **SIMULATED** | Seeded fixture datasets explicitly flagged with `data_source: "SIMULATED"`. |
+| **PayPal Disputes & Evidence** | **LIVE (Conditional)** | Documented `multipart/form-data` with `input` JSON part (`{"evidences": [...]}`) submitted to `POST /v1/customer/disputes/{id}/provide-evidence` and `POST /v1/customer/disputes/{id}/accept-claim`, verified against `WAITING_FOR_SELLER_RESPONSE`. Falls back to `MockTransport` in offline/test mode. |
+| **PayPal Webhooks Pipeline** | **LIVE (Conditional)** | Process-then-commit state in SQLite on `CUSTOMER.DISPUTE.CREATED`, `PAYMENT.CAPTURE.COMPLETED`. Verifies transmission headers via PayPal API with dev bypass flag. `GET /events` reads from SQLite. |
+| **State & SQLite Persistence** | **LIVE (Persistent)** | SQLite engine storing `control_tower_items`, `disputes`, `transactions`, and append-only tamper-evident audit log with maker-checker controls, fork prevention (`BEGIN IMMEDIATE` + `UNIQUE(item_id, prev_hash)`), and persistent head tracking. |
+| **Merkle Tree Proof Verification** | **LIVE (Algorithmic)** | RFC 6962-compliant domain-separated SHA-256 Merkle tree calculation, Ed25519 merchant signatures binding root hash and timestamp, random per-proof salts, and raw evidence byte recomputation. |
+| **Untrusted Message Firewall** | **LIVE (Deterministic)** | Confusable folding, zero-width character stripping, and pattern isolation scanner rejecting prompt injections with 0% false positives on multilingual and emoji text. |
+| **Arena Evaluation & Grounded Drafter** | **LIVE / EVAL CORPUS** | Live corpus evaluation endpoint (`POST /api/arena/eval`) measuring block and false-positive rates across 96 adversarial/benign cases; hard validator verifies every rebuttal sentence against committed Merkle leaves. |
+| **Dispute & Transaction Feeds** | **HYBRID (SQLite / Seeded)** | Seeded fixture datasets explicitly flagged with `data_source: "SIMULATED"` or `data_source: "PERSISTED_SQLITE"`. |
 | **Agent Commerce Simulation** | **SIMULATED** | Step-by-step agent negotiation simulation; all actions and mock IDs explicitly flagged `data_source: "SIMULATED"`. |
 
 ## 🏆 Hackathon Prize Alignment

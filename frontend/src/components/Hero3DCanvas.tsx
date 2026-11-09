@@ -425,7 +425,7 @@ function ExplodablePhone({
         <HolographicLaserScanner isExploded={isExploded} />
       </group>
 
-      {/* LAYER 4: Exploded Floating Front Card: Visa CE 3.0 Rebuttal */}
+      {/* LAYER 4: Exploded Floating Front Card: Dispute Rebuttal */}
       <group ref={frontCardGroupRef} position={[-0.44, -0.46, 0.38]}>
         <Html
           transform
@@ -445,7 +445,7 @@ function ExplodablePhone({
               </div>
               <div>
                 <p className="text-[10px] uppercase font-black tracking-wider text-emerald-400">
-                  Visa CE 3.0 Rebuttal Won
+                  Dispute Rebuttal Won
                 </p>
                 <h3 className="text-sm font-bold text-white mt-0.5">Payment Confirmed</h3>
                 <p className="text-[10px] text-slate-300 mt-0.5">

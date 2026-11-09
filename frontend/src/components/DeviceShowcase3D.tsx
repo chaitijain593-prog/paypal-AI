@@ -85,7 +85,7 @@ export default function DeviceShowcase3D() {
             Autonomous E-Wallet &amp; Defense UI Kit
           </h1>
           <p className="text-sm sm:text-base text-slate-300 mt-1 max-w-2xl font-normal">
-            Multi-device 3D interactive preview of the PayPal autonomous agent wallet, prompt-injection firewall, and verified Visa CE 3.0 resolution screens.
+            Multi-device 3D interactive preview of the PayPal autonomous agent wallet, prompt-injection firewall, and verified Seller Protection resolution screens.
           </p>
         </div>
 
@@ -146,7 +146,7 @@ export default function DeviceShowcase3D() {
           <div className="text-3xl sm:text-4xl font-black text-[#FFC43A] tracking-tight flex items-baseline gap-1">
             <span>42</span><span className="text-xs font-bold text-slate-400">sec</span>
           </div>
-          <p className="text-xs text-slate-400 font-medium mt-1">CE 3.0 Rebuttal Speed</p>
+          <p className="text-xs text-slate-400 font-medium mt-1">Rebuttal Defense Speed</p>
           <p className="text-[11px] text-slate-500">vs 4-5 business days manual</p>
         </div>
 
@@ -249,7 +249,7 @@ export default function DeviceShowcase3D() {
                   <div className="flex items-center justify-between text-[11px] font-bold text-slate-900 uppercase tracking-wider">
                     <span>Total Protected Value</span>
                     <span className="text-[10px] bg-black/15 px-2 py-0.5 rounded-full text-slate-900 font-extrabold">
-                      CE 3.0 Live
+                      Defense Live
                     </span>
                   </div>
                   <div className="text-2xl sm:text-3xl font-black tracking-tight text-slate-950">
@@ -332,7 +332,7 @@ export default function DeviceShowcase3D() {
                     </div>
                     <div>
                       <p className="text-[11px] font-bold text-white leading-tight">APPL (MacBook Pro)</p>
-                      <p className="text-[9px] text-slate-400 leading-tight">Dispute Won · CE 3.0</p>
+                      <p className="text-[9px] text-slate-400 leading-tight">Dispute Won · Evidence Verified</p>
                     </div>
                   </div>
                   <span className="text-[11px] font-black text-white">+$1,249.99</span>
@@ -391,7 +391,7 @@ export default function DeviceShowcase3D() {
 
               <div>
                 <p className="text-xs uppercase font-extrabold tracking-wider text-[#76E243]">
-                  Compelling Evidence 3.0
+                  Compelling Evidence
                 </p>
                 <h3 className="text-lg font-black text-white">Dispute Won!</h3>
                 <p className="text-[11px] text-slate-300 mt-0.5">
@@ -533,10 +533,10 @@ export default function DeviceShowcase3D() {
             03
           </div>
           <h3 className="text-lg font-bold text-white mb-1">
-            Visa CE 3.0 Merkle Chain
+            Cryptographic Merkle Chain
           </h3>
           <p className="text-xs text-slate-400 leading-relaxed">
-            Every rebuttal statement is cryptographically anchored to SHA-256 carrier proofs, ensuring 100% legal admissibility and automatic dispute fee waivers.
+            Every rebuttal statement is cryptographically anchored to SHA-256 carrier proofs, ensuring tamper-evident validation and accelerated dispute resolution.
           </p>
         </div>
       </div>

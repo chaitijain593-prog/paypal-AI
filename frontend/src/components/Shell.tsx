@@ -52,7 +52,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             <span className="font-semibold text-slate-300">PaySentinel AI</span> — PayPal AI Hackathon 2026
           </div>
           <div className="flex items-center gap-4 text-slate-400">
-            <span>Visa Compelling Evidence 3.0</span>
+            <span>PayPal Seller Protection</span>
             <span>·</span>
             <span>PayPal Orders v2 API</span>
             <span>·</span>

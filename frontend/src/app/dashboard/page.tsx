@@ -92,7 +92,7 @@ export default function DashboardPage() {
 
       {/* Two Column Section (gap-6) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left 2 Cols: Defense Readiness & CE 3.0 Engine */}
+        {/* Left 2 Cols: Defense Readiness & Seller Protection Engine */}
         <div className="lg:col-span-2 space-y-6">
           {/* Dispute Readiness Card */}
           <div className="p-6 rounded-xl bg-[#121826] border border-white/[0.06]">
@@ -103,16 +103,21 @@ export default function DashboardPage() {
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-white leading-tight">
-                    Visa Compelling Evidence 3.0 Engine
+                    PayPal Seller Protection Engine
                   </h3>
                   <p className="text-xs text-slate-400 mt-1">
                     Automated SHA-256 evidence assembly &amp; carrier matching
                   </p>
                 </div>
               </div>
-              <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                100% Legally Admissible
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                  DATA: SIMULATED
+                </span>
+                <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                  Cryptographically Verified
+                </span>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
@@ -150,12 +155,17 @@ export default function DashboardPage() {
                   </p>
                 </div>
               </div>
-              <Link
-                href="/arena"
-                className="text-xs text-[#3B9EFF] hover:underline flex items-center gap-1 font-medium"
-              >
-                Simulate Attack <ArrowRight className="w-3.5 h-3.5" />
-              </Link>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                  DATA: SIMULATED
+                </span>
+                <Link
+                  href="/arena"
+                  className="text-xs text-[#3B9EFF] hover:underline flex items-center gap-1 font-medium"
+                >
+                  Simulate Attack <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
             </div>
 
             <div className="space-y-3">

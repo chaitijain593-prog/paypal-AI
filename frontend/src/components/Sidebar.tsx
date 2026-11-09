@@ -136,8 +136,8 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarPr
             Untrusted Buyer inputs quarantined. 0 prompt injections permitted.
           </p>
           <div className="mt-3 pt-2.5 border-t border-white/[0.06] flex items-center justify-between text-[10px] text-slate-400">
-            <span>Visa CE 3.0</span>
-            <span className="text-emerald-400 font-semibold">100% Verified</span>
+            <span>Seller Protection</span>
+            <span className="text-emerald-400 font-semibold">Verified</span>
           </div>
         </div>
 
