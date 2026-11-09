@@ -213,7 +213,17 @@ def test_customer_dispute_created_pipeline(monkeypatch):
         },
     }
 
-    res = client.post("/api/webhooks/paypal", json=payload)
+    mock_draft = {
+        "rebuttal_letter": f"Rebuttal for PayPal Dispute {dispute_id}: Formal contest citing [EVD-TRK-{dispute_id[:6]}] and [EVD-ORD-{dispute_id[:6]}].",
+        "claims": [
+            {"evidence_id": f"EVD-TRK-{dispute_id[:6]}", "statement": "Carrier delivery scan confirmed release."},
+            {"evidence_id": f"EVD-ORD-{dispute_id[:6]}", "statement": "Order record confirms item shipment."},
+        ],
+        "confidence_score": 0.95,
+        "recommended_action": "SUBMIT_EVIDENCE",
+    }
+    with patch("app.services.defense_drafter._query_gemini_defense_draft", new=AsyncMock(return_value=mock_draft)):
+        res = client.post("/api/webhooks/paypal", json=payload)
     assert res.status_code == 200
     data = res.json()
     assert data["status"] == "PROCESSED"

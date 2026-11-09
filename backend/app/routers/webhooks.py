@@ -235,7 +235,7 @@ async def receive_paypal_webhook(
                 },
             ]
 
-            draft_res = draft_dispute_defense(
+            draft_res = await draft_dispute_defense(
                 dispute_id=dispute_id,
                 order_id=transaction_id,
                 dispute_reason=reason,

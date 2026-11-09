@@ -116,8 +116,11 @@ def test_benign_buyer_messages_pass_clean():
         assert result.quarantined is False
 
 
-def test_hard_validator_rejects_ungrounded_claims():
+@pytest.mark.anyio
+async def test_hard_validator_rejects_ungrounded_claims():
     """Verify that defense drafting strictly verifies evidence_id citations against Merkle leaves."""
+    from unittest.mock import patch, AsyncMock
+
     valid_evidence = [
         {
             "evidence_id": "EVID-TRACK-001",
@@ -131,19 +134,30 @@ def test_hard_validator_rejects_ungrounded_claims():
         },
     ]
 
-    # 1. Valid Grounded Defense
-    result = draft_dispute_defense(
-        dispute_id="PP-D-9901",
-        order_id="ORD-1001",
-        dispute_reason="MERCHANDISE_NOT_RECEIVED",
-        buyer_message="I never got this package! Refund me now!",
-        evidence_leaves=valid_evidence,
-    )
-    assert result.validation_passed is True
-    assert len(result.claims) > 0
-    valid_ids = {"EVID-TRACK-001", "EVID-SIGN-002"}
-    for claim in result.claims:
-        assert claim.evidence_id in valid_ids
+    # 1. Valid Grounded Defense with Mocked LLM Output
+    mock_llm_response = {
+        "rebuttal_letter": "Dear PayPal Claims Specialist,\n\nWe formally contest this claim citing evidence [EVID-TRACK-001] and [EVID-SIGN-002]. Package was delivered and signed.",
+        "claims": [
+            {"evidence_id": "EVID-TRACK-001", "statement": "USPS delivery confirmation confirmed package release."},
+            {"evidence_id": "EVID-SIGN-002", "statement": "Direct recipient signature capture on terminal."},
+        ],
+        "confidence_score": 0.96,
+        "recommended_action": "SUBMIT_EVIDENCE",
+    }
+
+    with patch("app.services.defense_drafter._query_gemini_defense_draft", new=AsyncMock(return_value=mock_llm_response)):
+        result = await draft_dispute_defense(
+            dispute_id="PP-D-9901",
+            order_id="ORD-1001",
+            dispute_reason="MERCHANDISE_NOT_RECEIVED",
+            buyer_message="I never got this package! Refund me now!",
+            evidence_leaves=valid_evidence,
+        )
+        assert result.validation_passed is True
+        assert len(result.claims) > 0
+        valid_ids = {"EVID-TRACK-001", "EVID-SIGN-002"}
+        for claim in result.claims:
+            assert claim.evidence_id in valid_ids
 
     # 2. Hard-Code Validator Directly Rejects Hallucinated / Ungrounded IDs
     evidence_map = {e["evidence_id"]: e["description"] for e in valid_evidence}
@@ -155,3 +169,17 @@ def test_hard_validator_rejects_ungrounded_claims():
     passed, error = validate_defense_claims(hallucinated_claims, evidence_map)
     assert passed is False
     assert "UNGROUNDED_CLAIM_REJECTED" in error
+
+    # 3. LLM Failure returns LLM_UNAVAILABLE and escalates (no hardcoded 0.92 fallback)
+    with patch("app.services.defense_drafter._query_gemini_defense_draft", new=AsyncMock(return_value=None)):
+        failed_res = await draft_dispute_defense(
+            dispute_id="PP-D-9902",
+            order_id="ORD-1002",
+            dispute_reason="MERCHANDISE_NOT_RECEIVED",
+            buyer_message="Package missing",
+            evidence_leaves=valid_evidence,
+        )
+        assert failed_res.validation_passed is False
+        assert failed_res.escalated_to_control_tower is True
+        assert "LLM_UNAVAILABLE" in failed_res.rebuttal_letter
+        assert failed_res.confidence_score == 0.0
