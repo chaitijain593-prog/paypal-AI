@@ -8,6 +8,7 @@ from app.services.proof_engine import (
     get_all_proofs,
     get_merchant_public_key_hex,
     get_merkle_root,
+    tamper_proof_record,
     verify_proof_record,
 )
 
@@ -51,4 +52,14 @@ def verify_proof(proof_id: str):
     if not result:
         raise HTTPException(status_code=404, detail=f"Proof {proof_id} not found")
     return result
+
+
+@router.post("/{proof_id}/tamper")
+def tamper_proof(proof_id: str):
+    """Simulates evidence tampering by flipping a stored raw evidence byte."""
+    success = tamper_proof_record(proof_id)
+    if not success:
+        raise HTTPException(status_code=404, detail=f"Proof {proof_id} not found")
+    return {"status": "TAMPERED", "proof_id": proof_id, "detail": "One byte flipped in raw evidence store."}
+
 

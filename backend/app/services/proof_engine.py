@@ -1,12 +1,13 @@
 """
 PaySentinel AI — Cryptographic Merkle Proof Tree Engine
 =======================================================
-Implements standard-grade RFC 6962 binary SHA-256 Merkle trees with domain separation:
+Implements strict RFC 6962 binary SHA-256 Merkle trees with domain separation:
   - leaf_hash = SHA-256(0x00 || raw_evidence_bytes)
   - node_hash = SHA-256(0x01 || left_hash_bytes || right_hash_bytes)
 
 Prevents second-preimage attacks and binds dispute claims to raw evidence bytes.
-Includes Ed25519 merchant cryptographic root signatures and salted attribute commitments.
+Includes Ed25519 merchant cryptographic root signatures with timestamp binding (signed_at)
+and cryptographically secure salted commitments.
 """
 
 from __future__ import annotations
@@ -14,6 +15,8 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import secrets
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -62,7 +65,53 @@ def hash_node(left_hex: str, right_hex: str) -> str:
     return hashlib.sha256(b"\x01" + left_bytes + right_bytes).hexdigest()
 
 
-hash_children = hash_node  # RFC 6962 alias
+hash_children = hash_node
+
+
+def rfc6962_mth(hashes: list[str]) -> str:
+    """
+    RFC 6962 Section 2.1 Merkle Tree Hash calculation.
+    Uses power-of-two split: k is the largest power of two strictly less than n.
+    Guarantees that [a, b, c] != [a, b, c, c].
+    """
+    n = len(hashes)
+    if n == 0:
+        return sha256(b"")
+    if n == 1:
+        return hashes[0]
+    k = 1 << ((n - 1).bit_length() - 1)
+    left_root = rfc6962_mth(hashes[:k])
+    right_root = rfc6962_mth(hashes[k:])
+    return hash_node(left_root, right_root)
+
+
+def _get_audit_path(leaf_hashes: list[str], m: int) -> list[dict[str, str]]:
+    """
+    RFC 6962 Section 2.1.1 Merkle Audit Path generation.
+    Returns the minimal list of sibling hashes needed to re-derive the root for leaf m.
+    """
+    n = len(leaf_hashes)
+    if n <= 1:
+        return []
+    k = 1 << ((n - 1).bit_length() - 1)
+    if m < k:
+        path = _get_audit_path(leaf_hashes[:k], m)
+        right_root = rfc6962_mth(leaf_hashes[k:])
+        path.append({
+            "direction": "right",
+            "sibling": right_root,
+            "step": f"level_{len(path) + 1}",
+        })
+        return path
+    else:
+        path = _get_audit_path(leaf_hashes[k:], m - k)
+        left_root = rfc6962_mth(leaf_hashes[:k])
+        path.append({
+            "direction": "left",
+            "sibling": left_root,
+            "step": f"level_{len(path) + 1}",
+        })
+        return path
 
 
 # ── 2. Ed25519 Merchant Key Management & Root Signing ───────────────────────
@@ -144,19 +193,21 @@ def get_merchant_public_key_hex() -> str:
     return raw_pub.hex()
 
 
-def sign_merkle_root(root_hash: str) -> str:
-    """Signs the Merkle root hash using the merchant's private Ed25519 key."""
+def sign_merkle_root(root_hash: str, signed_at: str) -> str:
+    """Signs (root_hash || '|' || signed_at) using the merchant's private Ed25519 key."""
     priv_key, _ = _ensure_merchant_keys()
-    sig = priv_key.sign(root_hash.encode("utf-8"))
+    message = f"{root_hash}|{signed_at}".encode("utf-8")
+    sig = priv_key.sign(message)
     return sig.hex()
 
 
-def verify_merkle_root_signature(root_hash: str, signature_hex: str) -> bool:
-    """Verifies that the Merkle root was authentically signed by the merchant Ed25519 key."""
+def verify_merkle_root_signature(root_hash: str, signed_at: str, signature_hex: str) -> bool:
+    """Verifies that (root_hash || '|' || signed_at) was authentically signed by the merchant Ed25519 key."""
     _, pub_key = _ensure_merchant_keys()
     try:
         sig_bytes = bytes.fromhex(signature_hex)
-        pub_key.verify(sig_bytes, root_hash.encode("utf-8"))
+        message = f"{root_hash}|{signed_at}".encode("utf-8")
+        pub_key.verify(sig_bytes, message)
         return True
     except Exception:
         return False
@@ -164,73 +215,23 @@ def verify_merkle_root_signature(root_hash: str, signature_hex: str) -> bool:
 
 # ── 3. RFC 6962 Domain-Separated Merkle Tree ────────────────────────────────
 
-class MerkleNode:
-    def __init__(self, hash_val: str, left: MerkleNode | None = None, right: MerkleNode | None = None) -> None:
-        self.hash = hash_val
-        self.left = left
-        self.right = right
-
-
 class MerkleTree:
-    """RFC 6962 compliant Binary SHA-256 Merkle Tree with domain separation."""
+    """RFC 6962 compliant Binary SHA-256 Merkle Tree with power-of-2 split and domain separation."""
 
-    def __init__(self, leaves: list[bytes | str]) -> None:
+    def __init__(self, leaves: list[bytes | str], signed_at: str | None = None) -> None:
         if not leaves:
             raise ValueError("MerkleTree requires at least one leaf.")
-        self.raw_leaves = leaves
-        self.leaf_hashes = [hash_leaf(leaf) for leaf in leaves]
-        self.root_node = self._build_tree(self.leaf_hashes)
-        self.root_hash = self.root_node.hash
-        self.ed25519_signature = sign_merkle_root(self.root_hash)
-
-    def _build_tree(self, hashes: list[str]) -> MerkleNode:
-        nodes = [MerkleNode(h) for h in hashes]
-
-        while len(nodes) > 1:
-            next_level: list[MerkleNode] = []
-            for i in range(0, len(nodes), 2):
-                left = nodes[i]
-                right = nodes[i + 1] if i + 1 < len(nodes) else MerkleNode(left.hash)
-                parent_hash = hash_node(left.hash, right.hash)
-                next_level.append(MerkleNode(parent_hash, left, right))
-            nodes = next_level
-
-        return nodes[0]
+        self.raw_leaves = [l.encode("utf-8") if isinstance(l, str) else l for l in leaves]
+        self.leaf_hashes = [hash_leaf(leaf) for leaf in self.raw_leaves]
+        self.root_hash = rfc6962_mth(self.leaf_hashes)
+        self.signed_at = signed_at or datetime.now(timezone.utc).isoformat()
+        self.ed25519_signature = sign_merkle_root(self.root_hash, self.signed_at)
 
     def get_proof_path(self, leaf_index: int) -> list[dict[str, str]]:
-        """Generate audit path: list of sibling hashes needed to re-derive the root."""
+        """Generate audit path: minimal sibling hashes needed to re-derive the root."""
         if leaf_index < 0 or leaf_index >= len(self.leaf_hashes):
             raise IndexError("Leaf index out of bounds")
-
-        path: list[dict[str, str]] = []
-        current_idx = leaf_index
-        level_hashes = list(self.leaf_hashes)
-
-        while len(level_hashes) > 1:
-            is_right_child = current_idx % 2 == 1
-            sibling_idx = current_idx - 1 if is_right_child else current_idx + 1
-
-            if sibling_idx < len(level_hashes):
-                sibling_hash = level_hashes[sibling_idx]
-            else:
-                sibling_hash = level_hashes[current_idx]
-
-            path.append({
-                "direction": "left" if is_right_child else "right",
-                "sibling": sibling_hash,
-                "step": f"level_{len(path) + 1}",
-            })
-
-            next_level: list[str] = []
-            for i in range(0, len(level_hashes), 2):
-                l = level_hashes[i]
-                r = level_hashes[i + 1] if i + 1 < len(level_hashes) else l
-                next_level.append(hash_node(l, r))
-
-            current_idx = current_idx // 2
-            level_hashes = next_level
-
-        return path
+        return _get_audit_path(self.leaf_hashes, leaf_index)
 
     @staticmethod
     def verify_proof(leaf: bytes | str, proof_path: list[dict[str, str]], expected_root: str) -> bool:
@@ -246,8 +247,28 @@ class MerkleTree:
         return current_hash == expected_root
 
 
-# ── 4. Built-in Evidence Package & Active Tree ───────────────────────────────
+# ── 4. Raw Evidence Store & Built-in Package ────────────────────────────────
 
+@dataclass
+class StoredEvidence:
+    proof_id: str
+    evidence_id: str
+    filename: str
+    raw_bytes: bytes
+    leaf_index: int
+    proof_path: list[dict[str, str]]
+    root_hash: str
+    ed25519_signature: str
+    signed_at: str
+    ingested_at: str
+    merkle_included_at: str
+    file_size_bytes: int
+    mime_type: str
+    status: ProofStatus = ProofStatus.VERIFIED
+    original_leaf_hash: str = ""
+
+
+# Real raw evidence byte fixtures (verifiable from raw bytes)
 EVIDENCE_DATA: list[bytes] = [
     json.dumps({
         "carrier": "USPS",
@@ -262,7 +283,13 @@ EVIDENCE_DATA: list[bytes] = [
     b"RING_DOORBELL_CAMERA_FRAME:1080P:TIMESTAMP=2026-10-15T14:41:12Z:STATUS=DELIVERY_CONFIRMED",
 ]
 
-ACTIVE_MERKLE_TREE = MerkleTree(EVIDENCE_DATA)
+_BUILTIN_SIGNED_AT = "2026-10-15T14:35:01Z"
+ACTIVE_MERKLE_TREE = MerkleTree(EVIDENCE_DATA, signed_at=_BUILTIN_SIGNED_AT)
+
+# Raw evidence persistence table
+RAW_EVIDENCE_STORE: dict[str, StoredEvidence] = {}
+# Per-proof cryptographically secure random salts
+STORED_SALTS: dict[str, dict[str, str]] = {}
 
 PROOF_STORE: list[ProofRecord] = [
     ProofRecord(
@@ -313,19 +340,27 @@ PROOF_STORE: list[ProofRecord] = [
         file_size_bytes=len(EVIDENCE_DATA[3]),
         mime_type="application/octet-stream",
     ),
-    ProofRecord(
-        id="PRF-005",
-        evidence_id="EVD-BUYER-MSG",
-        filename="chat_transcript_tampered.bin",
-        original_hash="e1b7f6a5c4d3218765432100aabbccddeeff0011223344556677889900112233",
-        current_hash="99999999tampered999999999999999999999999999999999999999999999999",
-        status=ProofStatus.TAMPERED,
-        algorithm="SHA-256 (RFC 6962)",
-        verified_at=datetime.now(timezone.utc),
-        file_size_bytes=3200,
-        mime_type="application/octet-stream",
-    ),
 ]
+
+# Initialize RAW_EVIDENCE_STORE with the 4 genuine evidence artifacts
+for idx, p in enumerate(PROOF_STORE):
+    RAW_EVIDENCE_STORE[p.id] = StoredEvidence(
+        proof_id=p.id,
+        evidence_id=p.evidence_id,
+        filename=p.filename,
+        raw_bytes=EVIDENCE_DATA[idx],
+        leaf_index=idx,
+        proof_path=ACTIVE_MERKLE_TREE.get_proof_path(idx),
+        root_hash=ACTIVE_MERKLE_TREE.root_hash,
+        ed25519_signature=ACTIVE_MERKLE_TREE.ed25519_signature,
+        signed_at=ACTIVE_MERKLE_TREE.signed_at,
+        ingested_at="2026-10-15T14:34:22Z",
+        merkle_included_at="2026-10-15T14:35:00Z",
+        file_size_bytes=len(EVIDENCE_DATA[idx]),
+        mime_type=p.mime_type,
+        status=ProofStatus.VERIFIED,
+        original_leaf_hash=ACTIVE_MERKLE_TREE.leaf_hashes[idx],
+    )
 
 
 def get_all_proofs() -> list[ProofRecord]:
@@ -336,48 +371,151 @@ def get_merkle_root() -> str:
     return ACTIVE_MERKLE_TREE.root_hash
 
 
+def tamper_proof_record(proof_id: str) -> bool:
+    """
+    Demonstrates evidence tampering by flipping a byte in the raw evidence store.
+    Directly affects subsequent verification calls because verify_proof_record
+    recomputes strictly from the raw bytes.
+    """
+    clean_id = proof_id.strip().upper()
+    stored = RAW_EVIDENCE_STORE.get(clean_id)
+    if not stored:
+        return False
+
+    # Flip the first byte
+    mutated = bytearray(stored.raw_bytes)
+    mutated[0] ^= 0x55
+    stored.raw_bytes = bytes(mutated)
+    stored.status = ProofStatus.TAMPERED
+
+    # Update PROOF_STORE current_hash to reflect the tampered state
+    for p in PROOF_STORE:
+        if p.id.strip().upper() == clean_id:
+            p.current_hash = hash_leaf(stored.raw_bytes)
+            p.status = ProofStatus.TAMPERED
+            break
+
+    return True
+
+
 def verify_proof_record(proof_id: str) -> ProofVerifyResult | None:
-    """Verifies proof record integrity and validates the Ed25519 signature."""
-    proof = next((p for p in PROOF_STORE if p.id == proof_id), None)
-    if not proof:
-        return None
+    """
+    Verifies proof record integrity by:
+    1. Recomputing the leaf hash strictly from stored raw evidence bytes.
+    2. Climbing the audit path to re-derive the Merkle root.
+    3. Verifying the Ed25519 merchant cryptographic root signature bound to signed_at.
+    Detects any bit flip in raw bytes or tampering in proof path.
+    """
+    clean_id = proof_id.strip().upper()
+    stored = RAW_EVIDENCE_STORE.get(clean_id)
+    if not stored:
+        # Fallback to PROOF_STORE lookup if not in raw store
+        proof = next((p for p in PROOF_STORE if p.id.strip().upper() == clean_id), None)
+        if not proof:
+            return None
+        return ProofVerifyResult(
+            proof_id=proof.id,
+            evidence_id=proof.evidence_id,
+            filename=proof.filename,
+            original_hash=proof.original_hash,
+            computed_hash=proof.current_hash,
+            match=proof.original_hash == proof.current_hash,
+            status=proof.status,
+            verified_at=datetime.now(timezone.utc),
+            chain_of_custody=[],
+            ed25519_signature=ACTIVE_MERKLE_TREE.ed25519_signature,
+            signature_verified=False,
+            signed_at=ACTIVE_MERKLE_TREE.signed_at,
+            recomputed_from_raw_bytes=False,
+        )
 
-    is_tampered = proof.original_hash != proof.current_hash
-    status = ProofStatus.TAMPERED if is_tampered else ProofStatus.VERIFIED
+    # 1. Recompute leaf hash from raw evidence bytes
+    computed_leaf_hash = hash_leaf(stored.raw_bytes)
+    leaf_matches_original = (computed_leaf_hash == stored.original_leaf_hash)
 
-    # Check Ed25519 signature of root
-    sig_valid = verify_merkle_root_signature(ACTIVE_MERKLE_TREE.root_hash, ACTIVE_MERKLE_TREE.ed25519_signature)
+    # 2. Reconstruct root along audit path
+    computed_root = computed_leaf_hash
+    for step in stored.proof_path:
+        sibling = step["sibling"]
+        if step["direction"] == "left":
+            computed_root = hash_node(sibling, computed_root)
+        else:
+            computed_root = hash_node(computed_root, sibling)
 
+    root_matches = (computed_root == stored.root_hash)
+
+    # 3. Verify Ed25519 signature binding signed_at
+    sig_valid = verify_merkle_root_signature(
+        computed_root,
+        stored.signed_at,
+        stored.ed25519_signature,
+    )
+
+    is_valid = leaf_matches_original and root_matches and sig_valid
+    status = ProofStatus.VERIFIED if is_valid else ProofStatus.TAMPERED
+
+    # Real recorded timestamps in chain of custody
     chain_of_custody = [
-        {"timestamp": "2026-10-15T14:34:22Z", "action": "INGESTED", "actor": "carrier_api", "hash": proof.original_hash[:16] + "..."},
-        {"timestamp": "2026-10-15T14:35:00Z", "action": "MERKLE_INCLUDED_RFC6962", "actor": "merkle_engine", "hash": ACTIVE_MERKLE_TREE.root_hash[:16] + "..."},
-        {"timestamp": "2026-10-15T14:35:01Z", "action": "ED25519_ROOT_SIGNED", "actor": "merchant_keys", "hash": ACTIVE_MERKLE_TREE.ed25519_signature[:16] + "..."},
-        {"timestamp": datetime.now(timezone.utc).isoformat(), "action": "VERIFIED", "actor": "paysentinel_proof_engine", "hash": proof.current_hash[:16] + "..."},
+        {
+            "timestamp": stored.ingested_at,
+            "action": "INGESTED",
+            "actor": "carrier_api",
+            "hash": stored.original_leaf_hash[:16] + "...",
+        },
+        {
+            "timestamp": stored.merkle_included_at,
+            "action": "MERKLE_INCLUDED_RFC6962",
+            "actor": "merkle_engine",
+            "hash": stored.root_hash[:16] + "...",
+        },
+        {
+            "timestamp": stored.signed_at,
+            "action": "ED25519_ROOT_SIGNED",
+            "actor": "merchant_keys",
+            "hash": stored.ed25519_signature[:16] + "...",
+        },
+        {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "action": "VERIFIED_FROM_RAW_BYTES" if is_valid else "TAMPER_DETECTED",
+            "actor": "paysentinel_proof_engine",
+            "hash": computed_leaf_hash[:16] + "...",
+        },
     ]
 
     return ProofVerifyResult(
-        proof_id=proof.id,
-        evidence_id=proof.evidence_id,
-        filename=proof.filename,
-        original_hash=proof.original_hash,
-        computed_hash=proof.current_hash,
-        match=not is_tampered,
+        proof_id=stored.proof_id,
+        evidence_id=stored.evidence_id,
+        filename=stored.filename,
+        original_hash=stored.original_leaf_hash,
+        computed_hash=computed_leaf_hash,
+        match=is_valid,
         status=status,
         verified_at=datetime.now(timezone.utc),
         chain_of_custody=chain_of_custody,
-        ed25519_signature=ACTIVE_MERKLE_TREE.ed25519_signature,
-        signature_verified=sig_valid and (not is_tampered),
+        ed25519_signature=stored.ed25519_signature,
+        signature_verified=sig_valid and is_valid,
+        signed_at=stored.signed_at,
+        recomputed_from_raw_bytes=True,
     )
 
 
 def generate_dynamic_merkle_proof(request: GenerateProofRequest) -> GenerateProofResponse:
-    """Dynamically construct a verified RFC 6962 Merkle proof tree with raw evidence bytes."""
+    """
+    Dynamically constructs a verified RFC 6962 Merkle proof tree with raw evidence bytes.
+    Generates cryptographically secure random per-proof salts and binds signed_at into Ed25519 root signature.
+    """
     proof_num = len(PROOF_STORE) + 1
     proof_id = f"PRF-{proof_num:03d}"
     evidence_id = f"EVD-{request.carrier.upper()}-{request.order_id[-4:]}"
-    now_iso = datetime.now(timezone.utc).isoformat()
+    now_dt = datetime.now(timezone.utc)
+    now_iso = now_dt.isoformat()
 
     salted_commitments: list[str] = []
+
+    # Generate cryptographically secure random per-proof salts
+    geo_salt = secrets.token_hex(16)
+    sig_salt = secrets.token_hex(16)
+    STORED_SALTS[proof_id] = {"geofence_salt": geo_salt, "identity_salt": sig_salt}
 
     # Leaf 1: Raw Carrier Response Bytes
     leaf_1_bytes = json.dumps(
@@ -392,18 +530,17 @@ def generate_dynamic_merkle_proof(request: GenerateProofRequest) -> GenerateProo
     ).encode("utf-8")
 
     # Leaf 2: Geofence Verification Raw Bytes
-    if request.use_zero_knowledge_predicates:
-        geo_salt = sha256(f"{request.latitude}:{request.longitude}:{request.order_id}")[:16]
+    use_salting = request.use_salted_commitments
+    if use_salting:
         leaf_2_bytes = f"SALTED_GEOFENCE:{request.latitude:.3f}:{request.longitude:.3f}:SALT={geo_salt}".encode("utf-8")
-        salted_commitments.append("Salted Geofence Commitment (Exact coordinates withheld)")
+        salted_commitments.append("Salted Geofence Commitment (Coordinates hashed with random 128-bit salt)")
     else:
         leaf_2_bytes = f"RAW_GEOFENCE:{request.latitude:.6f}:{request.longitude:.6f}:{request.delivery_address}".encode("utf-8")
 
     # Leaf 3: Signature Verification Raw Bytes
-    if request.use_zero_knowledge_predicates:
-        sig_salt = sha256(f"{request.buyer_name}:{request.order_id}")[:16]
+    if use_salting:
         leaf_3_bytes = f"SALTED_SIGNATURE:{request.buyer_name}:SALT={sig_salt}".encode("utf-8")
-        salted_commitments.append("Salted Identity Commitment (Biometric signature hash)")
+        salted_commitments.append("Salted Identity Commitment (Buyer name hashed with random 128-bit salt)")
     else:
         leaf_3_bytes = f"RAW_SIGNATURE:{request.buyer_name}:DIGITAL_MC93:{now_iso}".encode("utf-8")
 
@@ -411,7 +548,7 @@ def generate_dynamic_merkle_proof(request: GenerateProofRequest) -> GenerateProo
     leaf_4_bytes = f"CUSTODY:{request.order_id}:{request.dispute_id or f'DSP-{request.order_id[-4:]}'}:{now_iso}".encode("utf-8")
 
     leaves: list[bytes] = [leaf_1_bytes, leaf_2_bytes, leaf_3_bytes, leaf_4_bytes]
-    dynamic_tree = MerkleTree(leaves)
+    dynamic_tree = MerkleTree(leaves, signed_at=now_iso)
 
     proof_path = dynamic_tree.get_proof_path(0)
 
@@ -423,11 +560,30 @@ def generate_dynamic_merkle_proof(request: GenerateProofRequest) -> GenerateProo
         current_hash=dynamic_tree.leaf_hashes[0],
         status=ProofStatus.VERIFIED,
         algorithm="SHA-256 (RFC 6962)",
-        verified_at=datetime.now(timezone.utc),
+        verified_at=now_dt,
         file_size_bytes=sum(len(b) for b in leaves),
         mime_type="application/octet-stream",
     )
     PROOF_STORE.insert(0, record)
+
+    # Persist in raw evidence store for recomputation during verification
+    RAW_EVIDENCE_STORE[proof_id] = StoredEvidence(
+        proof_id=proof_id,
+        evidence_id=evidence_id,
+        filename=record.filename,
+        raw_bytes=leaf_1_bytes,
+        leaf_index=0,
+        proof_path=proof_path,
+        root_hash=dynamic_tree.root_hash,
+        ed25519_signature=dynamic_tree.ed25519_signature,
+        signed_at=now_iso,
+        ingested_at=now_iso,
+        merkle_included_at=now_iso,
+        file_size_bytes=len(leaf_1_bytes),
+        mime_type="application/octet-stream",
+        status=ProofStatus.VERIFIED,
+        original_leaf_hash=dynamic_tree.leaf_hashes[0],
+    )
 
     proof_record_dict = {
         "id": proof_id,
@@ -444,6 +600,7 @@ def generate_dynamic_merkle_proof(request: GenerateProofRequest) -> GenerateProo
         "zkPredicates": salted_commitments,
         "saltedCommitments": salted_commitments,
         "ed25519Signature": dynamic_tree.ed25519_signature,
+        "signedAt": now_iso,
         "merchantPublicKey": get_merchant_public_key_hex(),
     }
 
@@ -458,8 +615,9 @@ def generate_dynamic_merkle_proof(request: GenerateProofRequest) -> GenerateProo
         zk_predicates_applied=salted_commitments,
         salted_commitments_applied=salted_commitments,
         ed25519_signature=dynamic_tree.ed25519_signature,
+        signed_at=now_iso,
         merchant_public_key=get_merchant_public_key_hex(),
         status=ProofStatus.VERIFIED,
-        created_at=datetime.now(timezone.utc),
+        created_at=now_dt,
         proof_record=proof_record_dict,
     )
