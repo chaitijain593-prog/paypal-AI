@@ -1,212 +1,102 @@
-# 📘 PayPal Sandbox End-to-End Runbook
+# PaySentinel AI — PayPal Sandbox 5-Minute Evaluation Runbook
 
-This runbook guides you through running the **complete end-to-end PayPal Sandbox loop** in PaySentinel AI:
-
-$$\text{Buyer Orders} \longrightarrow \text{Dispute Filed} \longrightarrow \text{Control Tower Pauses} \longrightarrow \text{Operator Approves} \longrightarrow \text{Live PayPal API Dispatched} \longrightarrow \text{Webhook Updates}$$
+**Goal:** Step-by-step verification of real PayPal Sandbox Dispute Ingestion, Merkle Tree Proof verification, AI Firewall inspection, Maker-Checker Review, and Evidence Submission to PayPal.
 
 ---
 
-## ⚠️ Important PayPal Architectural Limitation
+## 1. Prerequisites (2 Minutes)
 
-> **Public API Limitation:** PayPal provides public REST APIs for **merchants** to list disputes, provide evidence, and accept claims (`/v1/customer/disputes`), but **does not provide a public REST API for buyer-initiated dispute creation**.
-> In PayPal's architecture, disputes are initiated either by buyers through the sandbox consumer web interface, or automatically simulated via webhooks. Both methods are detailed below.
-
----
-
-## 🛠️ Step 0: Sandbox Configuration & Environment
-
-Ensure `backend/.env` has your PayPal Developer credentials:
-
-```env
-PAYPAL_MODE=sandbox
-PAYPAL_CLIENT_ID=your_sandbox_client_id
-PAYPAL_CLIENT_SECRET=your_sandbox_client_secret
-PAYPAL_BASE_URL=https://api-m.sandbox.paypal.com
-PAYPAL_WEBHOOK_ID=your_registered_webhook_id
-```
-
-Verify your sandbox credentials by querying the health status:
-
-```bash
-curl -X GET http://localhost:8000/api/paypal/status
-```
-
-Expected response:
-```json
-{
-  "connected": true,
-  "mode": "SANDBOX_LIVE",
-  "message": "Successfully authenticated with PayPal Sandbox API v2.",
-  "base_url": "https://api-m.sandbox.paypal.com"
-}
-```
+1. **PayPal Developer Sandbox Accounts:**
+   - Log into [developer.paypal.com](https://developer.paypal.com)
+   - Go to **Testing Tools** > **Sandbox Accounts**
+   - You need:
+     - 1 **Business (Merchant) Account**
+     - 1 **Personal (Buyer) Account**
+2. **Configure Backend Environment:**
+   Ensure `backend/.env` contains your merchant credentials:
+   ```env
+   PAYPAL_MODE=sandbox
+   PAYPAL_CLIENT_ID=<Your_Sandbox_Client_ID>
+   PAYPAL_CLIENT_SECRET=<Your_Sandbox_Client_Secret>
+   PAYPAL_BASE_URL=https://api-m.sandbox.paypal.com
+   PAYPAL_WEBHOOK_ID=<Your_Sandbox_Webhook_ID>
+   APP_ENV=development
+   ```
 
 ---
 
-## 🛒 Step 1: Create and Capture an Order (Orders v2 API)
+## 2. Start Services & Webhook Tunnel (1 Minute)
 
-Generate an order with an idempotent `PayPal-Request-Id`:
-
-```bash
-# 1. Obtain Bearer Token directly or via our backend
-curl -X POST http://localhost:8000/api/paypal/orders/create \
-  -H "Content-Type: application/json" \
-  -d '{
-    "amount": 1250.00,
-    "currency": "USD",
-    "reference_id": "ORD-LIVE-001",
-    "request_id": "REQ-778899-IDEMP-01"
-  }'
-```
-
-Or execute against PayPal directly with curl:
-
-```bash
-ACCESS_TOKEN=$(curl -s -X POST https://api-m.sandbox.paypal.com/v1/oauth2/token \
-  -u "$PAYPAL_CLIENT_ID:$PAYPAL_CLIENT_SECRET" \
-  -d "grant_type=client_credentials" | jq -r .access_token)
-
-ORDER_ID=$(curl -s -X POST https://api-m.sandbox.paypal.com/v2/checkout/orders \
-  -H "Authorization: Bearer $ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -H "PayPal-Request-Id: REQ-778899-IDEMP-01" \
-  -d '{
-    "intent": "CAPTURE",
-    "purchase_units": [{
-      "reference_id": "ORD-LIVE-001",
-      "amount": {"currency_code": "USD", "value": "1250.00"}
-    }]
-  }' | jq -r .id)
-
-echo "Created Sandbox Order: $ORDER_ID"
-```
-
-Capture the order:
-
-```bash
-curl -s -X POST https://api-m.sandbox.paypal.com/v2/checkout/orders/$ORDER_ID/capture \
-  -H "Authorization: Bearer $ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -H "PayPal-Request-Id: CAP-778899-IDEMP-01"
-```
+1. **Start Backend (FastAPI):**
+   ```bash
+   cd backend
+   python -m uvicorn app.main:app --port 8000
+   ```
+2. **Start Frontend (Next.js):**
+   ```bash
+   cd frontend
+   npm run dev
+   ```
+3. **Expose Localhost Webhook Endpoint via ngrok (or Cloudflare Tunnel):**
+   ```bash
+   ngrok http 8000
+   ```
+   *Copy your forwarding HTTPS URL, e.g., `https://abcdef123.ngrok-free.app`.*
+4. **Register Webhook in PayPal Developer Dashboard:**
+   - Navigate to your Sandbox App in Developer Dashboard.
+   - Click **Add Webhook**.
+   - URL: `https://abcdef123.ngrok-free.app/api/webhooks/paypal`
+   - Select Event: **Customer dispute created** (`CUSTOMER.DISPUTE.CREATED`).
+   - Copy the generated Webhook ID into `backend/.env` as `PAYPAL_WEBHOOK_ID`.
 
 ---
 
-## 🚨 Step 2: File the Dispute
+## 3. Trigger Live Dispute in Sandbox Resolution Center (1 Minute)
 
-### Option A: Via PayPal Sandbox Resolution Center UI (Real Buyer Account)
-1. Log in to [sandbox.paypal.com](https://www.sandbox.paypal.com) using your PayPal Sandbox **Buyer Account**.
-2. Find the capture transaction for `$1,250.00`.
-3. Click **Report a Problem** / **Resolution Center** $\rightarrow$ select **I haven't received an item I purchased**.
-4. Submit the dispute. PayPal will issue a real Dispute ID (format: `PP-D-XXXXX`).
-
-### Option B: Trigger via Webhook Event
-Simulate the incoming `CUSTOMER.DISPUTE.CREATED` webhook:
-
-```bash
-curl -X POST http://localhost:8000/api/webhooks/paypal \
-  -H "Content-Type: application/json" \
-  -d '{
-    "id": "WH-EVT-998811",
-    "event_type": "CUSTOMER.DISPUTE.CREATED",
-    "resource_type": "dispute",
-    "summary": "Customer dispute created for order $1250.00",
-    "resource": {
-      "dispute_id": "PP-D-88412",
-      "dispute_amount": {"value": "1250.00", "currency_code": "USD"},
-      "reason": "MERCHANDISE_OR_SERVICE_NOT_RECEIVED",
-      "status": "UNDER_REVIEW"
-    }
-  }'
-```
+1. Open [sandbox.paypal.com](https://sandbox.paypal.com) and log in with your **Personal (Buyer)** Sandbox credentials.
+2. If you already have a completed purchase, go to **Activity**, select the transaction, and click **Report a problem**.
+   *(Alternatively, create a purchase by approving an order created via `python scripts/sandbox_smoke.py`).*
+3. In the Resolution Center:
+   - Select reason: **I didn't receive an item I purchased** (`MERCHANDISE_OR_SERVICE_NOT_RECEIVED`).
+   - Message: `"The package has not arrived after two weeks. Please refund."`
+   - Submit Dispute.
 
 ---
 
-## 🛡️ Step 3: Inspect the Human Control Tower Queue
+## 4. Verify Live Ingestion & Merkle Proof in PaySentinel (1 Minute)
 
-Check the pending queue:
-
-```bash
-curl -X GET http://localhost:8000/api/control-tower/pending
-```
-
-Notice that `CT-9021` (`PP-D-88412`) was automatically paused because the amount ($1,250.00) exceeds the $500 safety policy ceiling.
-
----
-
-## ✍️ Step 4: Approve and Dispatch Evidence to PayPal API
-
-Review and approve the dispute defense package:
-
-```bash
-curl -X POST http://localhost:8000/api/control-tower/CT-9021/approve \
-  -H "Content-Type: application/json" \
-  -d '{
-    "reviewer_name": "Chief Risk Officer",
-    "reviewer_notes": "Physical signature verified on MC93 terminal. FedEx GPS within 0.1mi."
-  }'
-```
-
-When `PAYPAL_MODE=sandbox`, this executes an authentic HTTP call to:
-`POST https://api-m.sandbox.paypal.com/v1/customer/disputes/PP-D-88412/provide-evidence`
-
-Response verifies live submission:
-```json
-{
-  "id": "CT-9021",
-  "status": "APPROVED_AND_SUBMITTED",
-  "audit_trail": [
-    ...,
-    {
-      "actor": "Chief Risk Officer",
-      "action": "APPROVE_AND_SUBMIT",
-      "previous_state": "PENDING_REVIEW",
-      "new_state": "APPROVED_AND_SUBMITTED",
-      "paypal_api_status": "PAYPAL_SANDBOX_SUBMITTED (HTTP 200)",
-      "prev_hash": "GENESIS",
-      "entry_hash": "a4f89d..."
-    }
-  ]
-}
-```
+1. **Observe Webhook Intake:**
+   - Check backend logs:
+     ```text
+     INFO: Received PayPal webhook event WH-... (CUSTOMER.DISPUTE.CREATED)
+     INFO: Signature verified authentic via PayPal Sandbox API.
+     INFO: Stored raw dispute payload in RAW_EVIDENCE_STORE.
+     INFO: Ingested into Control Tower queue item CT-...
+     ```
+2. **Open PaySentinel Control Tower:**
+   - Navigate to `http://localhost:3000/approval-queue` in your browser.
+   - Observe the newly ingested dispute at the top of the queue.
+   - Inspect:
+     - **Draft Status:** Displays `NO_EVIDENCE` (if carrier tracking was absent) or `DRAFT_VALID` (if tracking scan was attached).
+     - **Audit Trail:** Shows initial entry with `prev_hash="GENESIS"` and valid SHA-256 state chain.
+3. **Exercise Maker-Checker Review:**
+   - Select role **Operator** in Top Navigation.
+   - Click **Edit Defense**, enter authentic shipment tracking:
+     `"Carrier UPS tracking 1Z9999999999999999 confirms delivery to buyer front porch on 2026-11-04."`
+   - Click **Save Edits** -> Draft status transitions to `HUMAN_AUTHORED`.
+   - Switch role to **Senior Risk Officer** in Top Navigation.
+   - Click **Approve & Push to PayPal API**.
+4. **Inspect Sandbox Dispute Resolution:**
+   - Return to [sandbox.paypal.com](https://sandbox.paypal.com) logged into the **Business (Merchant)** account.
+   - Open **Resolution Center** > View Dispute History.
+   - Confirm your defense letter and evidence submission appear in the official PayPal Sandbox dispute timeline!
 
 ---
 
-## 🔐 Step 5: Verify the Cryptographic Audit Hash Chain
+## 5. Automated Headless Verification
 
-Ensure the tamper-evident log has not been modified:
-
+You can verify PayPal Sandbox connectivity at any time using:
 ```bash
-curl -X GET http://localhost:8000/api/control-tower/CT-9021/verify-audit-chain
+python scripts/sandbox_smoke.py
 ```
-
-Expected output:
-```json
-{
-  "item_id": "CT-9021",
-  "verified": true,
-  "details": "Hash chain verified across 2 entries."
-}
-```
-
----
-
-## 🔁 Step 6: Test Maker-Checker Security Enforcement
-
-Attempting to approve an item where the reviewer is the same as the creator (`AI_DEFENSE_ENGINE`):
-
-```bash
-curl -X POST http://localhost:8000/api/control-tower/CT-9021/approve \
-  -H "Content-Type: application/json" \
-  -d '{
-    "reviewer_name": "AI_DEFENSE_ENGINE",
-    "reviewer_notes": "Self approval attempt"
-  }'
-```
-
-Expected HTTP 400 Bad Request:
-```json
-{
-  "detail": "Maker cannot be checker: reviewer must be different from item creator"
-}
-```
+This script validates OAuth2 token generation, creates a real sandbox order, checks capture behavior, and validates the dispute schema.
