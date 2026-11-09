@@ -161,7 +161,11 @@ def test_handler_failure_then_successful_retry(monkeypatch):
     payload = {
         "id": event_id,
         "event_type": "CUSTOMER.DISPUTE.CREATED",
-        "resource": {"dispute_id": f"PP-FAIL-{uuid.uuid4().hex[:6]}", "amount": {"value": "50.00"}},
+        "resource": {
+            "dispute_id": f"PP-FAIL-{uuid.uuid4().hex[:6]}",
+            "amount": {"value": "50.00"},
+            "evidence": [{"tracking_number": "1Z999FAIL", "carrier_name": "UPS"}],
+        },
     }
 
     # 1. First attempt fails due to simulated downstream exception
@@ -210,14 +214,14 @@ def test_customer_dispute_created_pipeline(monkeypatch):
             "buyer": {"name": "Jordan Smith", "email": "jordan@example.com"},
             "description": "I did not receive the package after two weeks.",
             "item_name": "Apple AirPods Pro 2nd Gen",
+            "evidence": [{"tracking_number": "1Z9999999999999999", "carrier_name": "UPS"}],
         },
     }
 
     mock_draft = {
-        "rebuttal_letter": f"Rebuttal for PayPal Dispute {dispute_id}: Formal contest citing [EVD-TRK-{dispute_id[:6]}] and [EVD-ORD-{dispute_id[:6]}].",
+        "rebuttal_letter": f"Rebuttal for PayPal Dispute {dispute_id}: Formal contest citing [EVD-TRK-1].",
         "claims": [
-            {"evidence_id": f"EVD-TRK-{dispute_id[:6]}", "statement": "Carrier delivery scan confirmed release."},
-            {"evidence_id": f"EVD-ORD-{dispute_id[:6]}", "statement": "Order record confirms item shipment."},
+            {"evidence_id": "EVD-TRK-1", "statement": "Carrier delivery scan confirmed release."},
         ],
         "confidence_score": 0.95,
         "recommended_action": "SUBMIT_EVIDENCE",

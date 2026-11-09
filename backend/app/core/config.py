@@ -35,6 +35,8 @@ class Settings:
     # Security & Financial Caps
     high_value_amount_cap: float = float(os.getenv("HIGH_VALUE_AMOUNT_CAP", "500.00"))
     api_tokens: str = os.getenv("API_TOKENS", "")
+    # Standard PayPal Dispute Fee (verify against developer.paypal.com/docs/disputes/#dispute-fees)
+    paypal_dispute_fee: float = float(os.getenv("PAYPAL_DISPUTE_FEE", "15.00"))
 
     # CORS
     cors_origins: list[str] = os.getenv(

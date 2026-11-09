@@ -29,8 +29,10 @@ from app.models.schemas import (
     AuditTrailEntry,
     ControlTowerItem,
     ControlTowerStatus,
+    DraftStatus,
     ProofClaim,
 )
+from app.services.firewall import firewall_engine
 from app.services.control_tower_service import control_tower_service
 from app.services.defense_drafter import draft_dispute_defense
 from app.services.dispute_provider import get_dispute_provider
@@ -80,6 +82,7 @@ async def receive_paypal_webhook(
     2. Process-then-commit: Transition status PROCESSING -> PROCESSED (or FAILED on error to allow retries).
     3. On CUSTOMER.DISPUTE.CREATED: Fetch dispute, draft defense via defense_drafter, route to Control Tower.
     """
+    settings = get_settings()
     try:
         payload = await request.json()
     except Exception:
@@ -221,39 +224,94 @@ async def receive_paypal_webhook(
                 or f"Customer opened dispute {dispute_id}."
             )
 
-            # Assemble evidence leaves for defense drafting
-            evidence_leaves = [
-                {
-                    "evidence_id": f"EVD-TRK-{dispute_id[:6]}",
-                    "type": "CARRIER_TRACKING",
-                    "description": f"Verified carrier delivery confirmation for transaction {transaction_id}.",
-                },
-                {
-                    "evidence_id": f"EVD-ORD-{dispute_id[:6]}",
-                    "type": "ORDER_RECORD",
-                    "description": f"Merchant order fulfillment record matching buyer {buyer_name}.",
-                },
-            ]
+            # Check for real tracking and evidence in fetched dispute or stored order records
+            evidence_leaves: list[dict[str, Any]] = []
+            tracking_info = fetched.get("evidence", []) or fetched.get("tracking_info", [])
+            if not tracking_info and "disputed_transactions" in fetched:
+                for dt in fetched["disputed_transactions"]:
+                    if "tracking_info" in dt:
+                        tracking_info.extend(dt["tracking_info"])
 
-            draft_res = await draft_dispute_defense(
-                dispute_id=dispute_id,
-                order_id=transaction_id,
-                dispute_reason=reason,
-                buyer_message=buyer_msg,
-                evidence_leaves=evidence_leaves,
-            )
+            # Also check RAW_EVIDENCE_STORE for any real matching tracking/order artifacts
+            from app.services.proof_engine import RAW_EVIDENCE_STORE, MerkleTree, hash_leaf, sign_merkle_root
+            has_real_tracking = False
+            signed_at_iso = datetime.now(timezone.utc).isoformat()
+            
+            # Store raw dispute payload as authentic evidence
+            disp_ev_id = f"EVD-DISPUTE-{dispute_id}"
+            disp_raw = json.dumps(fetched, sort_keys=True).encode("utf-8")
+            RAW_EVIDENCE_STORE[disp_ev_id] = disp_raw
 
-            claims = [
-                ProofClaim(
-                    claim_id=f"CLM-{c.evidence_id}",
-                    statement_text=c.statement,
-                    source_type="EVIDENCE",
-                    source_record_id=c.evidence_id,
-                    sha256_hash=_sha256(c.statement),
-                    verified=True,
+            if tracking_info:
+                for idx, trk in enumerate(tracking_info):
+                    t_num = trk.get("tracking_number") or trk.get("tracking_number_raw") or ""
+                    carrier = trk.get("carrier_name") or "CARRIER"
+                    if t_num:
+                        has_real_tracking = True
+                        ev_id = f"EVD-TRK-{idx+1}"
+                        raw_b = json.dumps(trk, sort_keys=True).encode("utf-8")
+                        RAW_EVIDENCE_STORE[ev_id] = raw_b
+                        tree = MerkleTree([raw_b], signed_at=signed_at_iso)
+                        root_sig = sign_merkle_root(tree.root_hash, signed_at_iso)
+                        evidence_leaves.append({
+                            "evidence_id": ev_id,
+                            "type": "CARRIER_TRACKING",
+                            "description": f"Carrier {carrier} tracking {t_num} from dispute evidence.",
+                            "raw_bytes": raw_b,
+                            "root": tree.root_hash,
+                            "root_signature": root_sig,
+                            "signed_at": signed_at_iso,
+                            "proof_path": tree.get_proof_path(0),
+                        })
+
+            # Untrusted Input Firewall: evaluate real buyer message
+            firewall_assessment = firewall_engine.inspect(buyer_msg)
+            is_firewall_flagged = firewall_assessment.quarantined
+            firewall_details_str = firewall_assessment.mitigation_action
+
+            if has_real_tracking and evidence_leaves:
+                draft_res = await draft_dispute_defense(
+                    dispute_id=dispute_id,
+                    order_id=transaction_id,
+                    dispute_reason=reason,
+                    buyer_message=buyer_msg,
+                    evidence_leaves=evidence_leaves,
                 )
-                for c in draft_res.claims
-            ]
+                draft_status = (
+                    DraftStatus.DRAFT_VALID
+                    if draft_res.validation_passed and draft_res.rebuttal_letter != "LLM_UNAVAILABLE"
+                    else DraftStatus.DRAFT_FAILED
+                )
+                rebuttal_letter = draft_res.rebuttal_letter if draft_status == DraftStatus.DRAFT_VALID else ""
+                conf_score = draft_res.confidence_score if draft_status == DraftStatus.DRAFT_VALID else 0.0
+                rec_action = (
+                    AIRecommendedAction.ACCEPT_CLAIM_AND_REFUND
+                    if draft_res.recommended_action == "ACCEPT_CLAIM_AND_REFUND"
+                    else AIRecommendedAction.SUBMIT_EVIDENCE
+                )
+                claims = []
+                for c in draft_res.claims:
+                    leaf_match = next((l for l in evidence_leaves if l["evidence_id"] == c.evidence_id), None)
+                    v_proof = False
+                    if leaf_match and "proof_path" in leaf_match and "root" in leaf_match:
+                        v_proof = MerkleTree.verify_proof(leaf_match["raw_bytes"], leaf_match["proof_path"], leaf_match["root"])
+                    claims.append(
+                        ProofClaim(
+                            claim_id=f"CLM-{c.evidence_id}",
+                            statement_text=c.statement,
+                            source_type="EVIDENCE",
+                            source_record_id=c.evidence_id,
+                            sha256_hash=_sha256(c.statement),
+                            verified=v_proof,
+                        )
+                    )
+            else:
+                # No real delivery / tracking evidence exists -> NO_EVIDENCE, never fabricate
+                draft_status = DraftStatus.NO_EVIDENCE
+                rebuttal_letter = ""
+                conf_score = 0.0
+                rec_action = AIRecommendedAction.ACCEPT_CLAIM_AND_REFUND
+                claims = []
 
             now = datetime.now(timezone.utc)
             sla_deadline = now + timedelta(days=7)
@@ -263,17 +321,26 @@ async def receive_paypal_webhook(
                 except Exception:
                     pass
 
-            escalation_triggers = ["NEW_PAYPAL_WEBHOOK_INGESTION"]
-            if amount > 500.0:
-                escalation_triggers.append("HIGH_VALUE_THRESHOLD (> $500)")
-            if draft_res.confidence_score < 0.8:
-                escalation_triggers.append(f"LOW_CONFIDENCE_SCORE ({draft_res.confidence_score:.2f} < 0.80)")
+            settings = get_settings()
+            if amount > settings.high_value_amount_cap:
+                auto_pilot = False
+                rec_action = AIRecommendedAction.ESCALATE_MANUAL_INQUIRY
+                logger.warning(
+                    "HIGH_VALUE_DISPUTE: Dispute %s amount %.2f exceeds cap %.2f. Auto-pilot disabled.",
+                    dispute_id,
+                    amount,
+                    settings.high_value_amount_cap,
+                )
+            else:
+                auto_pilot = (draft_status == DraftStatus.DRAFT_VALID)
 
-            rec_action = (
-                AIRecommendedAction.ACCEPT_CLAIM_AND_REFUND
-                if draft_res.recommended_action == "ACCEPT_CLAIM_AND_REFUND"
-                else AIRecommendedAction.SUBMIT_EVIDENCE
-            )
+            escalation_triggers = ["NEW_PAYPAL_WEBHOOK_INGESTION"]
+            if amount > settings.high_value_amount_cap:
+                escalation_triggers.append(f"HIGH_VALUE_THRESHOLD (> ${settings.high_value_amount_cap:.2f})")
+            if draft_status in (DraftStatus.NO_EVIDENCE, DraftStatus.DRAFT_FAILED):
+                escalation_triggers.append(f"INSUFFICIENT_EVIDENCE_STATUS ({draft_status.value})")
+            elif conf_score < 0.8:
+                escalation_triggers.append(f"LOW_CONFIDENCE_SCORE ({conf_score:.2f} < 0.80)")
 
             item_id = f"CT-{uuid.uuid4().hex[:8].upper()}"
             first_audit_entry = AuditTrailEntry(
@@ -282,8 +349,8 @@ async def receive_paypal_webhook(
                 action="INGESTED_VIA_WEBHOOK",
                 previous_state="INGESTED",
                 new_state=ControlTowerStatus.PENDING_REVIEW.value,
-                reviewer_notes=f"Auto-ingested from PayPal webhook {event_id}. Drafted defense generated.",
-                payload_hash=_sha256(draft_res.rebuttal_letter),
+                reviewer_notes=f"Auto-ingested from PayPal webhook {event_id}. Status={draft_status.value}.",
+                payload_hash=_sha256(rebuttal_letter),
                 paypal_api_status="PENDING_REVIEW",
                 prev_hash="GENESIS",
                 entry_hash=compute_audit_hash(
@@ -294,8 +361,8 @@ async def receive_paypal_webhook(
                     action="INGESTED_VIA_WEBHOOK",
                     previous_state="INGESTED",
                     new_state=ControlTowerStatus.PENDING_REVIEW.value,
-                    reviewer_notes=f"Auto-ingested from PayPal webhook {event_id}. Drafted defense generated.",
-                    payload_hash=_sha256(draft_res.rebuttal_letter),
+                    reviewer_notes=f"Auto-ingested from PayPal webhook {event_id}. Status={draft_status.value}.",
+                    payload_hash=_sha256(rebuttal_letter),
                     paypal_api_status="PENDING_REVIEW",
                 ),
             )
@@ -310,17 +377,23 @@ async def receive_paypal_webhook(
                 item_name=fetched.get("item_name", "Merchant Order Item"),
                 amount=amount,
                 currency=currency,
-                dispute_fee_at_risk=15.00,
+                dispute_fee_at_risk=settings.paypal_dispute_fee,
                 sla_deadline=sla_deadline,
                 escalation_triggers=escalation_triggers,
-                ai_confidence_score=draft_res.confidence_score,
+                ai_confidence_score=conf_score,
                 ai_recommended_action=rec_action,
-                ai_rationale=f"Automated ingestion pipeline drafted defense rebuttal citing {len(claims)} verified evidence claims.",
-                drafted_defense_letter=draft_res.rebuttal_letter,
+                ai_rationale=(
+                    f"Automated ingestion pipeline drafted defense rebuttal citing {len(claims)} verified evidence claims."
+                    if draft_status == DraftStatus.DRAFT_VALID
+                    else "No authentic carrier delivery proof found in dispute payload. Escalating to concede or request customer documentation."
+                ),
+                drafted_defense_letter=rebuttal_letter,
+                draft_status=draft_status,
+                auto_pilot=auto_pilot,
                 proof_claims=claims,
                 buyer_raw_message=buyer_msg,
-                firewall_injection_flagged=False,
-                firewall_details="Webhook payload processed.",
+                firewall_injection_flagged=is_firewall_flagged,
+                firewall_details=firewall_details_str,
                 status=ControlTowerStatus.PENDING_REVIEW,
                 audit_trail=[first_audit_entry],
                 creator_name="PAYPAL_WEBHOOK_PIPELINE",
