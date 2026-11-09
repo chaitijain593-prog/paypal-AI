@@ -55,7 +55,10 @@ def _load_token_registry() -> dict[str, dict[str, str]]:
         # If API_TOKENS is empty
         if settings.app_env == "development":
             # Generate random ephemeral tokens at startup and write them to gitignored file
-            ephemeral_path = Path("backend/data/ephemeral_dev_tokens.txt")
+            if Path("app").is_dir():
+                ephemeral_path = Path("data/ephemeral_dev_tokens.txt")
+            else:
+                ephemeral_path = Path("backend/data/ephemeral_dev_tokens.txt")
             ephemeral_path.parent.mkdir(parents=True, exist_ok=True)
             
             # Default well-known dev tokens so test suites and local frontends function seamlessly
