@@ -365,6 +365,20 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
+  runFirewallEval: () =>
+    request<{
+      status: string;
+      data_source: string;
+      total_adversarial: number;
+      adversarial_blocked: number;
+      block_rate_pct: number;
+      total_benign: number;
+      benign_passed: number;
+      false_positive_rate_pct: number;
+      overall_accuracy_pct: number;
+      processing_time_ms: number;
+      timestamp: string;
+    }>('/api/arena/eval', { method: 'POST' }),
 
   // Cash Flow Runway
   getCashFlowRunway: () => request<ApiCashFlowRunway>('/api/cashflow/runway'),

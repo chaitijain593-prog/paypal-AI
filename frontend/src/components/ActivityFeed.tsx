@@ -103,7 +103,12 @@ export default function ActivityFeed({ alerts }: ActivityFeedProps) {
   return (
     <div className="p-5 rounded-xl bg-[#121826] border border-white/[0.06]">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-base font-bold text-white">Recent Activity</h3>
+        <h3 className="text-base font-bold text-white flex items-center gap-2">
+          Recent Activity
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 font-mono">
+            SIMULATED
+          </span>
+        </h3>
         <button className="flex items-center gap-1 text-xs text-[#3B9EFF] hover:underline font-medium">
           View All <ArrowRight className="w-3 h-3" />
         </button>

@@ -1,75 +1,102 @@
 """
-Unit and Integration Tests for Phase 3: Cryptographic Proof Engine
-==================================================================
+Unit and Integration Tests for Step 6: Cryptographic Proof Engine Hardening
+===========================================================================
 Covers:
-1. RFC 6962 Domain Separation (leaf_hash != sha256 of raw bytes)
-2. Raw evidence bytes hashing & tamper detection (byte flip test)
-3. Ed25519 root signing and public-key verification
-4. Proof API endpoints (/generate, /{id}/verify, /public-key)
+1. RFC 6962 Domain Separation & Odd-node handling: [a, b, c] != [a, b, c, c].
+2. verify_proof_record recomputing from stored raw evidence bytes.
+3. Deletion of PRF-005 fixture; real byte-flip tamper demo.
+4. Cryptographically secure random per-proof salts.
+5. Ed25519 root signing bound to signed_at timestamp.
+6. Real recorded chain_of_custody timestamps.
 """
 
 from __future__ import annotations
 
 import hashlib
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 from fastapi.testclient import TestClient
 
 from app.main import app
 from app.services.proof_engine import (
     MerkleTree,
+    get_all_proofs,
     get_merchant_public_key_hex,
     hash_children,
     hash_leaf,
     sha256,
     sign_merkle_root,
+    tamper_proof_record,
     verify_merkle_root_signature,
+    verify_proof_record,
 )
 
 client = TestClient(app)
 
 
-# ── 1. Domain Separation Tests ───────────────────────────────────────────────
+# ── 1. Domain Separation & RFC 6962 Odd-Node Tests ──────────────────────────
 
 def test_domain_separation_rfc6962():
     raw_evidence = b"DELIVERY_RECEIPT_USPS_TRACKING_94001"
-
-    # Standard raw SHA-256 of bytes
     plain_sha256 = hashlib.sha256(raw_evidence).hexdigest()
-
-    # RFC 6962 domain-separated leaf hash = SHA-256(0x00 || raw_evidence)
     leaf_h = hash_leaf(raw_evidence)
 
-    # Domain separation ensures leaf_hash can NEVER equal plain SHA-256
     assert leaf_h != plain_sha256
     assert leaf_h == hashlib.sha256(b"\x00" + raw_evidence).hexdigest()
 
-    # Internal node domain separation = SHA-256(0x01 || left || right)
     left_child = leaf_h
     right_child = hash_leaf(b"ANOTHER_LEAF")
     node_h = hash_children(left_child, right_child)
 
-    # Node hash cannot equal plain concatenation
     plain_node = hashlib.sha256(bytes.fromhex(left_child) + bytes.fromhex(right_child)).hexdigest()
     assert node_h != plain_node
     assert node_h == hashlib.sha256(b"\x01" + bytes.fromhex(left_child) + bytes.fromhex(right_child)).hexdigest()
 
 
-# ── 2. Ed25519 Merchant Root Signing Tests ───────────────────────────────────
+def test_rfc6962_odd_node_split_not_equal_duplicated():
+    """RFC 6962 power-of-two split ensures [a, b, c] != [a, b, c, c]."""
+    leaf_a = b"LEAF_A_CONFIRMATION"
+    leaf_b = b"LEAF_B_CARRIER_SCAN"
+    leaf_c = b"LEAF_C_SIGNATURE_DATA"
 
-def test_ed25519_root_signing_and_verification():
+    tree_3 = MerkleTree([leaf_a, leaf_b, leaf_c])
+    tree_4 = MerkleTree([leaf_a, leaf_b, leaf_c, leaf_c])
+
+    # In RFC 6962, [a, b, c] root MUST NOT equal [a, b, c, c]
+    assert tree_3.root_hash != tree_4.root_hash, "RFC 6962 violation: [a,b,c] had same root as [a,b,c,c]"
+
+    # Verify audit paths for all 3 leaves in tree_3
+    p0 = tree_3.get_proof_path(0)
+    p1 = tree_3.get_proof_path(1)
+    p2 = tree_3.get_proof_path(2)
+
+    assert MerkleTree.verify_proof(leaf_a, p0, tree_3.root_hash) is True
+    assert MerkleTree.verify_proof(leaf_b, p1, tree_3.root_hash) is True
+    assert MerkleTree.verify_proof(leaf_c, p2, tree_3.root_hash) is True
+
+
+# ── 2. Ed25519 Root Signing with signed_at Binding ──────────────────────────
+
+def test_ed25519_root_signing_bound_to_timestamp():
     leaves = [
         b"USPS_DELIVERED_RECORD",
         b"GEOFENCE_GPS_30.2672_-97.7431",
         b"SIGNATURE_CAPTURE_TERMINAL_MC93",
     ]
-    tree = MerkleTree(leaves)
+    tree = MerkleTree(leaves, signed_at="2026-11-09T10:00:00Z")
 
-    # Merkle root was signed with merchant key
-    assert len(tree.ed25519_signature) == 128  # 64 bytes = 128 hex chars
-    assert verify_merkle_root_signature(tree.root_hash, tree.ed25519_signature) is True
+    assert len(tree.ed25519_signature) == 128
+    # Valid signature with matching signed_at
+    assert verify_merkle_root_signature(tree.root_hash, "2026-11-09T10:00:00Z", tree.ed25519_signature) is True
 
-    # Signature verification fails on mutated root
+    # Mutated timestamp fails signature verification
+    assert verify_merkle_root_signature(tree.root_hash, "2026-11-09T10:00:01Z", tree.ed25519_signature) is False
+
+    # Mutated root hash fails signature verification
     mutated_root = tree.root_hash[:-4] + "0000"
-    assert verify_merkle_root_signature(mutated_root, tree.ed25519_signature) is False
+    assert verify_merkle_root_signature(mutated_root, "2026-11-09T10:00:00Z", tree.ed25519_signature) is False
 
 
 def test_merchant_public_key_api():
@@ -77,76 +104,94 @@ def test_merchant_public_key_api():
     assert res.status_code == 200
     data = res.json()
     assert data["algorithm"] == "Ed25519"
-    assert len(data["public_key_hex"]) == 64  # 32 bytes = 64 hex chars
+    assert len(data["public_key_hex"]) == 64
     assert data["public_key_hex"] == get_merchant_public_key_hex()
 
 
-# ── 3. Tamper Detection & Byte Flip Test ─────────────────────────────────────
+# ── 3. Tamper Detection, Raw Byte Recomputation & PRF-005 Removal ───────────
 
-def test_tamper_byte_flip_detection():
-    raw_evidence_1 = b"CARRIER_SCAN_TRACKING_12345678"
-    raw_evidence_2 = b"SIGNATURE_DIGITAL_SCAN_MARCUS"
-    raw_evidence_3 = b"GEOFENCE_37.7749_-122.4194"
-
-    tree = MerkleTree([raw_evidence_1, raw_evidence_2, raw_evidence_3])
-    proof_path = tree.get_proof_path(0)
-
-    # 1. Untouched evidence verifies mathematically against original root
-    assert MerkleTree.verify_proof(raw_evidence_1, proof_path, tree.root_hash) is True
-
-    # 2. Flip exactly 1 byte in the raw evidence
-    # Change first byte 'C' (0x43) to 'D' (0x44)
-    mutated_evidence = bytes([raw_evidence_1[0] ^ 0x01]) + raw_evidence_1[1:]
-    assert mutated_evidence != raw_evidence_1
-
-    # 3. Mathematical reconstruction fails
-    assert MerkleTree.verify_proof(mutated_evidence, proof_path, tree.root_hash) is False
-
-    # 4. If an attacker rebuilds a tree with the tampered leaf, the root changes
-    tampered_tree = MerkleTree([mutated_evidence, raw_evidence_2, raw_evidence_3])
-    assert tampered_tree.root_hash != tree.root_hash
-
-    # 5. Original merchant signature is invalid for the tampered root
-    assert verify_merkle_root_signature(tampered_tree.root_hash, tree.ed25519_signature) is False
+def test_prf_005_fixture_deleted():
+    """Fixture PRF-005 must be deleted from default proof list."""
+    proofs = get_all_proofs()
+    ids = [p.id for p in proofs]
+    assert "PRF-005" not in ids
+    assert len(ids) == 4
+    for p in proofs:
+        assert p.status in ("VERIFIED", "verified")
 
 
-# ── 4. Dynamic Proof API Integration ─────────────────────────────────────────
+def test_verify_recomputes_from_stored_raw_bytes():
+    """verify_proof_record recomputes leaf hash strictly from stored raw bytes."""
+    result = verify_proof_record("PRF-001")
+    assert result is not None
+    assert result.match is True
+    assert result.status in ("VERIFIED", "verified")
+    assert result.signature_verified is True
+    assert result.recomputed_from_raw_bytes is True
+    assert len(result.chain_of_custody) == 4
+    # Real recorded timestamps, not static placeholders
+    actions = [c["action"] for c in result.chain_of_custody]
+    assert "INGESTED" in actions
+    assert "VERIFIED_FROM_RAW_BYTES" in actions
 
-def test_dynamic_proof_generation_and_verification():
-    res_gen = client.post(
-        "/api/proofs/generate",
-        json={
-            "order_id": "ORD-LIVE-9041",
-            "dispute_id": "PP-D-99014",
-            "evidence_type": "Carrier Delivery & Geofence",
-            "carrier": "FedEx",
-            "tracking_number": "782910482019",
-            "buyer_name": "Marcus Vance",
-            "latitude": 37.7749,
-            "longitude": -122.4194,
-            "delivery_address": "456 Market St, San Francisco, CA",
-            "use_zero_knowledge_predicates": True,
-        },
-    )
-    assert res_gen.status_code == 200
-    data = res_gen.json()
 
-    assert data["proof_id"].startswith("PRF-")
-    assert len(data["merkle_root"]) == 64
-    assert data["leaf_count"] == 4
-    assert len(data["leaf_hashes"]) == 4
-    assert len(data["ed25519_signature"]) == 128
-    assert len(data["merchant_public_key"]) == 64
-    assert len(data["salted_commitments_applied"]) == 2
+def test_tamper_demo_flips_stored_byte():
+    """Tamper demo flips a real stored raw byte, causing verification to fail."""
+    # Verify PRF-002 initially passes
+    res_before = client.get("/api/proofs/PRF-002/verify")
+    assert res_before.status_code == 200
+    assert res_before.json()["match"] is True
 
-    # Verify endpoint
-    proof_id = data["proof_id"]
-    res_ver = client.get(f"/api/proofs/{proof_id}/verify")
-    assert res_ver.status_code == 200
-    data_ver = res_ver.json()
-    assert data_ver["match"] is True
-    assert data_ver["status"] == "VERIFIED"
-    assert data_ver["signature_verified"] is True
+    # Call tamper endpoint
+    res_tamper = client.post("/api/proofs/PRF-002/tamper")
+    assert res_tamper.status_code == 200
+    assert res_tamper.json()["status"] == "TAMPERED"
+
+    # Subsequent verification detects the corrupted byte
+    res_after = client.get("/api/proofs/PRF-002/verify")
+    assert res_after.status_code == 200
+    data = res_after.json()
+    assert data["match"] is False
+    assert data["status"] in ("TAMPERED", "tampered")
+    assert data["signature_verified"] is False
+
+
+# ── 4. Random Per-Proof Salts & Dynamic Proof Generation ───────────────────
+
+def test_random_per_proof_salts():
+    """Two identical dynamic proof requests must generate distinct random salts."""
+    req_body = {
+        "order_id": "ORD-SALT-9901",
+        "carrier": "FedEx",
+        "tracking_number": "782910482019",
+        "buyer_name": "Marcus Vance",
+        "latitude": 37.7749,
+        "longitude": -122.4194,
+        "delivery_address": "456 Market St, San Francisco, CA",
+        "use_salted_commitments": True,
+    }
+
+    res1 = client.post("/api/proofs/generate", json=req_body)
+    assert res1.status_code == 200
+    data1 = res1.json()
+
+    res2 = client.post("/api/proofs/generate", json=req_body)
+    assert res2.status_code == 200
+    data2 = res2.json()
+
+    # Distinct proof IDs
+    assert data1["proof_id"] != data2["proof_id"]
+    # Distinct random salts mean distinct Merkle roots despite identical business inputs
+    assert data1["merkle_root"] != data2["merkle_root"]
+
+    # Both verify successfully from raw stored bytes
+    v1 = client.get(f"/api/proofs/{data1['proof_id']}/verify").json()
+    assert v1["match"] is True
+    assert v1["signature_verified"] is True
+
+    v2 = client.get(f"/api/proofs/{data2['proof_id']}/verify").json()
+    assert v2["match"] is True
+    assert v2["signature_verified"] is True
 
 
 def test_ed25519_key_caching_and_no_auto_regeneration(tmp_path, monkeypatch):
@@ -157,10 +202,8 @@ def test_ed25519_key_caching_and_no_auto_regeneration(tmp_path, monkeypatch):
     _reset_key_cache()
     k1 = _ensure_merchant_keys()
     k2 = _ensure_merchant_keys()
-    # Cache returns the exact same object reference
     assert k1[0] is k2[0]
 
-    # Test corrupted key file raises RuntimeError
     fake_key_dir = tmp_path / "keys"
     fake_key_dir.mkdir()
     (fake_key_dir / "merchant_ed25519.pem").write_text("CORRUPTED_GARBAGE_BYTES")

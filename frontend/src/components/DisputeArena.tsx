@@ -155,6 +155,34 @@ export default function DisputeArena() {
   const [customAttackText, setCustomAttackText] = useState('');
   const [isAttacking, setIsAttacking] = useState(false);
   const [lastAttackResult, setLastAttackResult] = useState<ApiLiveAttackResult | null>(null);
+  const [isEvaluatingCorpus, setIsEvaluatingCorpus] = useState(false);
+  const [corpusEvalResult, setCorpusEvalResult] = useState<{
+    status: string;
+    data_source: string;
+    total_adversarial: number;
+    adversarial_blocked: number;
+    block_rate_pct: number;
+    total_benign: number;
+    benign_passed: number;
+    false_positive_rate_pct: number;
+    overall_accuracy_pct: number;
+    processing_time_ms: number;
+  } | null>(null);
+
+  const handleRunCorpusEval = async () => {
+    if (isEvaluatingCorpus) return;
+    setIsEvaluatingCorpus(true);
+    try {
+      const res = await api.runFirewallEval();
+      if (res) {
+        setCorpusEvalResult(res);
+      }
+    } catch {
+      // Graceful fallback
+    } finally {
+      setIsEvaluatingCorpus(false);
+    }
+  };
 
   const attackPresets = [
     {
@@ -270,6 +298,9 @@ export default function DisputeArena() {
               ? 'FastAPI Backend Connected (:8000/api/arena)'
               : 'Standby / Live Pipeline Ready'}
           </span>
+          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">
+            DATA: {backendConnected ? 'LIVE' : 'SIMULATED'}
+          </span>
         </div>
       </div>
 
@@ -312,15 +343,38 @@ export default function DisputeArena() {
                 <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 uppercase tracking-wider">
                   Live Judge Mode
                 </span>
+                {corpusEvalResult && (
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 uppercase tracking-wider flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+                    LIVE EVAL: {corpusEvalResult.block_rate_pct}% Block Rate ({corpusEvalResult.false_positive_rate_pct}% FP)
+                  </span>
+                )}
               </div>
               <p className="text-xs text-slate-400 mt-0.5">
                 Test custom adversarial dispute claims or prompt injection attacks against our Untrusted Input Firewall.
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Cpu className="w-4 h-4 text-cyan-400 animate-spin" />
-            <span className="text-xs font-mono text-cyan-300">Firewall Engine: Active</span>
+          <div className="flex items-center gap-2.5">
+            <button
+              onClick={handleRunCorpusEval}
+              disabled={isEvaluatingCorpus}
+              className="px-3 py-1.5 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-xs font-semibold flex items-center gap-1.5 transition-all disabled:opacity-50"
+            >
+              {isEvaluatingCorpus ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" /> Evaluating 90+ Corpus...
+                </>
+              ) : (
+                <>
+                  <Zap className="w-3.5 h-3.5 text-cyan-400" /> Run Live Eval Corpus (90+)
+                </>
+              )}
+            </button>
+            <div className="flex items-center gap-1.5">
+              <Cpu className="w-4 h-4 text-cyan-400 animate-spin" />
+              <span className="text-xs font-mono text-cyan-300">Firewall Engine: Active</span>
+            </div>
           </div>
         </div>
 

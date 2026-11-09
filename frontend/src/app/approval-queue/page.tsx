@@ -716,7 +716,7 @@ export default function ApprovalQueuePage() {
                       Verified Evidence Locker ({selectedItem.proof_claims.length})
                     </h4>
                     <span className="text-[10px] font-bold text-emerald-400">
-                      Visa CE 3.0 Ready
+                      Seller Protection Ready
                     </span>
                   </div>
 

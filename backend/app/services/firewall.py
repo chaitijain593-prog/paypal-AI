@@ -37,19 +37,76 @@ class FirewallAssessment(BaseModel):
     safeguards_applied: list[str]
 
 
+# ── Zero-Width & Homoglyph Confusable Folding Utilities ─────────────────────
+
+HOMOGLYPH_MAP: dict[str, str] = {
+    # Cyrillic to Latin
+    "а": "a", "с": "c", "е": "e", "о": "o", "р": "p", "х": "x", "у": "y", "і": "i", "ј": "j", "ѕ": "s",
+    "А": "A", "В": "B", "С": "C", "Е": "E", "Н": "H", "К": "K", "М": "M", "О": "O", "Р": "P", "Т": "T", "Х": "X",
+    # Greek to Latin
+    "α": "a", "β": "b", "ο": "o", "ρ": "p", "τ": "t", "ι": "i", "κ": "k",
+}
+
+ZERO_WIDTH_CHARS: set[str] = {
+    "\u200b",  # zero-width space
+    "\u200c",  # zero-width non-joiner (used in Indic/Persian scripts)
+    "\u200d",  # zero-width joiner (used in Indic scripts and emojis)
+    "\ufeff",  # byte order mark / zero-width no-break space
+    "\u00ad",  # soft hyphen
+    "\u200e",  # left-to-right mark
+    "\u200f",  # right-to-left mark
+}
+
+
+def strip_zero_width(text: str) -> str:
+    """Strips zero-width characters and invisible formatting marks without flagging."""
+    return "".join(c for c in text if c not in ZERO_WIDTH_CHARS)
+
+
+def fold_confusables(text: str) -> str:
+    """Folds visual homoglyphs (Cyrillic/Greek confusables) to standard Latin ASCII."""
+    decomposed = unicodedata.normalize("NFKD", text)
+    folded = "".join(HOMOGLYPH_MAP.get(c, c) for c in decomposed)
+    return unicodedata.normalize("NFKC", folded)
+
+
 # 1. High-risk Prompt Injection & Instruction Override Patterns
 PROMPT_INJECTION_PATTERNS: list[tuple[str, str, float, str]] = [
     (
-        r"(?i)(?:ignore|disregard|forget|override|bypass|stop\s+following|reset)\s+(?:all\s+)?(?:previous|prior|above|system|initial|merchant|business|safety|your|verification)?\s*(?:instruction|prompt|rule|command|directive|guideline|protocol|constraint)s?",
+        r"(?i)(?:ignore|disregard|forget|override|bypass|stop\s+following|reset|anula|descarta|ignora|ignorez|annulez|ignoriere|umgehe|игнорируйте)\s+(?:all|every|todas|las|toutes|les|alle|все)?\s*(?:previous|prior|above|system|initial|merchant|business|safety|your|verification|предыдущие|vorherigen)?\s*(?:instruction|prompt|rule|command|directive|guideline|protocol|constraint|regla|anweisung|richtlinie|инструкци|sicherheitsrichtlinie)s?",
         "DIRECT_INSTRUCTION_OVERRIDE",
         99.4,
         "Attempt to override AI system instructions and operating policies.",
     ),
     (
-        r"(?i)(?:system\s+override|admin_override|force\s+dispute\s+concession|release\s+funds|waive\s+all\s+(?:seller\s+)?defenses)",
+        r"(?i)(?:system\s+override|admin_override|force\s+dispute\s+concession|release\s+funds|waive\s+all\s+(?:seller\s+)?defenses|système\s+de\s+dérogation|command\s+the\s+system\s+to|abandon\s+dispute\s+rules)",
         "SYSTEM_OVERRIDE_DIRECTIVE",
         98.5,
         "System override or forced defense waiver directive.",
+    ),
+    (
+        r"(?i)(?:kindly|please|we\s+command\s+the\s+system\s+to|cease\s+following|put\s+aside)\s+(?:set\s+aside|neglect|abandon|disregard|ignore|bypass)\s+.*(?:constraint|directive|rule|policy|requirement)s?.*(?:reimbursement|refund|settlement|payout|funds|dispute)",
+        "PARAPHRASED_INSTRUCTION_OVERRIDE",
+        96.0,
+        "Paraphrased prompt injection attempting to coerce automated settlement.",
+    ),
+    (
+        r"(?i)(?:ignora\s+todas\s+las\s+instrucciones|ignorez\s+toutes\s+les\s+instructions|ignoriere\s+alle\s+vorherigen\s+anweisungen|игнорируйте\s+все\s+предыдущие\s+инструкции|忽略.*指令)",
+        "MULTILINGUAL_INSTRUCTION_OVERRIDE",
+        97.5,
+        "Multilingual prompt injection attempting to command resolution.",
+    ),
+    (
+        r"(?i)(?:authorize|release|issue|grant|execute|process)\s+(?:an?\s+)?immediate\s+(?:credit|funds|refund|payout|release|reimbursement)",
+        "COERCIVE_REFUND_DIRECTIVE",
+        94.0,
+        "Imperative directive commanding automated refund execution.",
+    ),
+    (
+        r"(?i)```(?:json|python|bash)?\s*[\{\[].*?(?:override|concede|bypass).*?[\}\]]\s*```",
+        "STRUCTURED_INJECTION_BLOCK",
+        98.0,
+        "Code/JSON payload attempting to inject override commands.",
     ),
     (
         r"(?i)(?:you\s+are\s+now|operate\s+as|act\s+as|pretend\s+(?:you\s+are|to\s+be)|simulate|you\s+are\s+an?\s+actor).*?(?:maintenance\s+mode|developer\s+mode|god\s+mode|admin\s+mode|unrestricted|DAN|do\s+anything\s+now|arbitrator|emergency\s+recovery|regulator|ceo|senior\s+claims\s+manager)",
@@ -155,7 +212,7 @@ AUTHORITY_SPOOFING_PATTERNS: list[tuple[str, str, float, str]] = [
 
 
 class UntrustedInputFirewall:
-    """Production-grade defense firewall for dispute and chargeback intake."""
+    """Hardened defense firewall for dispute and chargeback intake."""
 
     def __init__(self) -> None:
         self.injection_rules = [
@@ -173,20 +230,9 @@ class UntrustedInputFirewall:
         threats: list[ThreatMatch] = []
         applied_safeguards: list[str] = []
 
-        # 0. Check for Unicode obfuscation (zero-width characters / homoglyphs)
-        normalized = unicodedata.normalize("NFKD", raw_text)
-        zero_width_chars = {"\u200b", "\u200c", "\u200d", "\ufeff", "\u00ad"}
-        clean_text = "".join(c for c in normalized if c not in zero_width_chars)
-        if any(c in raw_text for c in zero_width_chars):
-            threats.append(
-                ThreatMatch(
-                    category="PROMPT_INJECTION",
-                    pattern="UNICODE_ZERO_WIDTH_OBFUSCATION",
-                    severity="HIGH",
-                    confidence=95.0,
-                    description="Hidden zero-width unicode characters detected in claim text.",
-                )
-            )
+        # 0. Clean input: strip zero-width characters and fold visual confusables (homoglyphs)
+        # Note: Zero-width characters are stripped rather than flagged to prevent false positives on Indic text and emojis.
+        clean_text = fold_confusables(strip_zero_width(raw_text))
 
         # 0b. Check for Base64 obfuscated payload
         b64_matches = re.findall(r"(?:[A-Za-z0-9+/]{16,}={0,2})", clean_text)
@@ -250,7 +296,7 @@ class UntrustedInputFirewall:
             primary_category = "BENIGN"
             quarantined = False
             mitigation = "Input verified benign. Routed directly to standard evidence arbitration."
-            sanitized_text = raw_text.strip()
+            sanitized_text = strip_zero_width(raw_text).strip()
             applied_safeguards.append("Standard ASCII & Length Bounds Checked")
         else:
             max_conf = max(t.confidence for t in threats)
@@ -299,7 +345,7 @@ class UntrustedInputFirewall:
 
     def _sanitize(self, text: str) -> str:
         """Strip dangerous syntax, delimiters, and directive overrides."""
-        cleaned = text
+        cleaned = strip_zero_width(text)
 
         # Strip special LLM tokens
         cleaned = re.sub(r"<\|.*?\|>", "", cleaned)

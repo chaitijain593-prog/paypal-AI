@@ -259,7 +259,10 @@ export default function ProofCard() {
             <p className="text-xs font-bold text-white flex items-center gap-2">
               <span>SHA-256 Binary Merkle Tree Active</span>
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-400/10 text-cyan-300 font-mono">
-                Visa CE 3.0 Compliant
+                Seller Protection Compliant
+              </span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-mono">
+                DATA: LIVE CRYPTO
               </span>
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-300 font-mono flex items-center gap-1">
                 <Lock className="w-3 h-3 text-cyan-400" /> Salted Commitment Mode
@@ -275,7 +278,7 @@ export default function ProofCard() {
           className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-cyan-600 via-blue-600 to-[#0070BA] hover:from-cyan-500 hover:to-blue-500 text-white text-xs font-semibold shadow-md shadow-cyan-500/20 transition-all flex-shrink-0 cursor-pointer"
         >
           <Plus className="w-3.5 h-3.5" />
-          <span>Generate ZK Merkle Proof</span>
+          <span>Generate Salted Merkle Proof</span>
         </button>
       </div>
 
@@ -449,7 +452,7 @@ export default function ProofCard() {
         )}
       </AnimatePresence>
 
-      {/* Dynamic ZK Merkle Proof Generation Modal */}
+      {/* Dynamic Salted Merkle Proof Generation Modal */}
       <AnimatePresence>
         {isCreateOpen && (
           <motion.div

@@ -6,7 +6,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 # ── Enums ──────────────────────────────────────────────────────────────────
@@ -212,6 +212,8 @@ class ProofVerifyResult(BaseModel):
     chain_of_custody: list[dict[str, Any]]
     ed25519_signature: str | None = None
     signature_verified: bool | None = None
+    signed_at: str | None = None
+    recomputed_from_raw_bytes: bool = True
     data_source: Literal["LIVE", "SIMULATED"] = "SIMULATED"
 
 
@@ -315,7 +317,16 @@ class GenerateProofRequest(BaseModel):
     latitude: float = 30.2672
     longitude: float = -97.7431
     delivery_address: str = "123 Oak St, Austin, TX 78701"
-    use_zero_knowledge_predicates: bool = True
+    use_salted_commitments: bool = True
+    use_zero_knowledge_predicates: bool | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_commitment_flag(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if "use_zero_knowledge_predicates" in data and "use_salted_commitments" not in data:
+                data["use_salted_commitments"] = data["use_zero_knowledge_predicates"]
+        return data
 
 
 class GenerateProofResponse(BaseModel):
@@ -329,6 +340,7 @@ class GenerateProofResponse(BaseModel):
     zk_predicates_applied: list[str] = Field(default_factory=list)
     salted_commitments_applied: list[str] = Field(default_factory=list)
     ed25519_signature: str | None = None
+    signed_at: str | None = None
     merchant_public_key: str | None = None
     status: ProofStatus
     created_at: datetime

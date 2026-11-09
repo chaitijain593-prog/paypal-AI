@@ -36,10 +36,10 @@ export default function PhoneScreenContent() {
     }, 3200);
   };
 
-  // Demo recurring alert loop (showcases live CE 3.0 rebuttal)
+  // Demo recurring alert loop (showcases live dispute rebuttal)
   useEffect(() => {
     const timer = setInterval(() => {
-      showAlert('Visa CE 3.0 Rebuttal Won', '+$1,249.99 Settle');
+      showAlert('Dispute Rebuttal Won', '+$1,249.99 Settle');
     }, 11000);
     return () => clearInterval(timer);
   }, []);
@@ -211,7 +211,7 @@ export default function PhoneScreenContent() {
                 </div>
                 <div>
                   <p className="text-[10px] font-semibold text-white leading-tight">Order #PP-7829</p>
-                  <p className="text-[8px] text-slate-400 leading-tight">Visa CE 3.0 · Dispute Won</p>
+                  <p className="text-[8px] text-slate-400 leading-tight">Seller Protection · Dispute Won</p>
                 </div>
               </div>
               <span className="text-[10px] font-semibold text-emerald-400 tabular-nums">+$1,249.99</span>
@@ -267,7 +267,7 @@ export default function PhoneScreenContent() {
                   <Calendar className="w-3.5 h-3.5" />
                 </div>
                 <div>
-                  <p className="text-[10px] font-semibold text-white leading-tight">Vendor Escrow Release</p>
+                  <p className="text-[10px] font-semibold text-white leading-tight">Vendor Settlement Release</p>
                   <p className="text-[8px] text-slate-400 leading-tight">Orders v2 · Tomorrow 09:00</p>
                 </div>
               </div>

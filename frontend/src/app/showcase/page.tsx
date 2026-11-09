@@ -4,7 +4,7 @@ import { Metadata } from 'next';
 
 export const metadata: Metadata = {
   title: '3D E-Wallet & Device Studio — PaySentinel AI',
-  description: 'Interactive 3D isometric mobile device showcase for PayPal autonomous agent wallets, CE 3.0 dispute rebuttals, and fintech defense.',
+  description: 'Interactive 3D isometric mobile device showcase for PayPal autonomous agent wallets, cryptographic dispute rebuttals, and fintech defense.',
 };
 
 export default function ShowcasePage() {

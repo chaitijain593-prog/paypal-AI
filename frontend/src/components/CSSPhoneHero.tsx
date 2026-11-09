@@ -128,11 +128,11 @@ export default function CSSPhoneHero({
             </div>
             <div>
               <p className="text-[10px] uppercase font-bold tracking-wider text-emerald-400">
-                CE 3.0 Rebuttal Won
+                Dispute Rebuttal Won
               </p>
               <h3 className="text-sm font-bold text-white">Payment Confirmed</h3>
               <p className="text-[10px] text-slate-400 mt-0.5">
-                Evidence verified by Visa &amp; PayPal
+                Evidence verified by PayPal Protection
               </p>
             </div>
             <div className="p-2 rounded-lg bg-white/[0.03] border border-white/[0.06] text-left text-[10px] space-y-1">

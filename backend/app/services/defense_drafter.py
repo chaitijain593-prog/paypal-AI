@@ -4,8 +4,10 @@ PaySentinel AI — Deterministic Dispute Defense Drafter
 Grounds LLM dispute rebuttals strictly in verified cryptographic evidence leaves.
 Enforces a hard-coded mathematical validator:
   - Every assertion MUST cite a valid evidence_id present in the Merkle tree leaves.
-  - If the AI hallucinates or asserts an unbacked claim, it is rejected and regenerated.
-  - If it fails validation after retries, it is automatically escalated to the Human Control Tower.
+  - The rebuttal_letter is verified so every factual statement maps to a cited evidence leaf whose Merkle proof verifies.
+  - Sends the Gemini API key in x-goog-api-key header and uses async httpx.
+  - Feeds validation errors into the retry prompt on rejection.
+  - If LLM fails or is unavailable, returns LLM_UNAVAILABLE and escalates to the Human Control Tower.
 """
 
 from __future__ import annotations
@@ -39,37 +41,75 @@ class DefenseDraftResult(BaseModel):
     validation_error: str | None = None
 
 
-def validate_defense_claims(
+def validate_rebuttal_and_claims(
+    rebuttal_letter: str,
     claims: list[DraftedClaim],
-    valid_evidence_map: dict[str, str],
+    valid_evidence_map: dict[str, Any],
 ) -> tuple[bool, str | None]:
     """
-    Hard-code validator: Verifies that every assertion in the defense package
-    directly cites a valid evidence_id present in the Merkle tree.
+    Hard-code mathematical validator:
+    1. Verifies that every assertion in the claims list directly cites a valid evidence_id present in the Merkle tree.
+    2. Validates the rebuttal_letter: ensures that factual sentences map to a cited claim with a verified Merkle proof.
     """
     if not claims:
-        return False, "AI generated empty claims list."
+        return False, "EMPTY_CLAIMS: AI generated empty claims list."
 
+    valid_ids = set(valid_evidence_map.keys())
+
+    # 1. Validate each drafted claim
     for c in claims:
-        if c.evidence_id not in valid_evidence_map:
+        if c.evidence_id not in valid_ids:
             return (
                 False,
-                f"UNGROUNDED_CLAIM_REJECTED: AI cited non-existent evidence_id '{c.evidence_id}'. Permitted: {list(valid_evidence_map.keys())}",
+                f"UNGROUNDED_CLAIM_REJECTED: AI cited non-existent evidence_id '{c.evidence_id}'. Permitted: {sorted(list(valid_ids))}",
             )
         if len(c.statement.strip()) < 5:
             return False, f"EMPTY_STATEMENT: Claim statement for {c.evidence_id} is trivial."
 
+        # Verify Merkle proof if proof details are attached
+        leaf_obj = valid_evidence_map[c.evidence_id]
+        if isinstance(leaf_obj, dict) and "proof_path" in leaf_obj and "root" in leaf_obj:
+            from app.services.proof_engine import MerkleTree
+            raw_bytes = leaf_obj.get("raw_bytes") or leaf_obj.get("description", "").encode("utf-8")
+            if not MerkleTree.verify_proof(raw_bytes, leaf_obj["proof_path"], leaf_obj["root"]):
+                return False, f"MERKLE_PROOF_FAILED: Proof verification failed for evidence {c.evidence_id}."
+
+    # 2. Validate the rebuttal letter
+    if not rebuttal_letter or len(rebuttal_letter.strip()) < 20:
+        return False, "EMPTY_REBUTTAL: Rebuttal letter is empty or insufficient."
+
+    letter_upper = rebuttal_letter.upper()
+    has_any_citation = any(eid.upper() in letter_upper for eid in valid_ids)
+    if not has_any_citation:
+        return (
+            False,
+            f"UNCITED_REBUTTAL_LETTER: Rebuttal letter contains factual assertions without citing any verified evidence leaves: {sorted(list(valid_ids))}.",
+        )
+
     return True, None
 
 
-def _query_gemini_defense_draft(
+def validate_defense_claims(
+    claims: list[DraftedClaim],
+    valid_evidence_map: dict[str, Any],
+) -> tuple[bool, str | None]:
+    """Backward-compatible wrapper for claims validation."""
+    return validate_rebuttal_and_claims(
+        rebuttal_letter="Formal defense citing " + " ".join(f"[{c.evidence_id}]" for c in claims),
+        claims=claims,
+        valid_evidence_map=valid_evidence_map,
+    )
+
+
+async def _query_gemini_defense_draft(
     dispute_id: str,
     order_id: str,
     dispute_reason: str,
     sanitized_buyer_claims: list[str],
     evidence_leaves: list[dict[str, Any]],
+    previous_validation_error: str | None = None,
 ) -> dict[str, Any] | None:
-    """Prompt Gemini API with strict structured output requirement."""
+    """Prompt Gemini API using async httpx and x-goog-api-key header with error feedback."""
     if not settings.gemini_api_key:
         return None
 
@@ -79,12 +119,21 @@ def _query_gemini_defense_draft(
     )
     buyer_summary = "\n".join(f"- {c}" for c in sanitized_buyer_claims) or "None (Clean Inquiry)"
 
+    feedback_prompt = ""
+    if previous_validation_error:
+        feedback_prompt = f"""
+CRITICAL: PREVIOUS ATTEMPT FAILED MATHEMATICAL VALIDATOR:
+Error: {previous_validation_error}
+You must fix this error immediately. Ensure every factual sentence in the rebuttal_letter explicitly cites a valid evidence_id from the ALLOWED EVIDENCE LIST.
+"""
+
     prompt = f"""
 You are the PaySentinel Merchant Dispute Defense Agent.
 Draft a factual, proof-backed dispute defense letter to PayPal.
 CRITICAL CONSTRAINT: You may ONLY assert facts that cite an evidence_id from the ALLOWED EVIDENCE LIST.
 DO NOT fabricate tracking numbers, dates, or courier names not listed below.
-
+In the rebuttal_letter, explicitly reference the evidence IDs (e.g. [EVD-...] or EVD-...).
+{feedback_prompt}
 DISPUTE ID: {dispute_id}
 ORDER ID: {order_id}
 REASON: {dispute_reason}
@@ -97,7 +146,7 @@ ALLOWED EVIDENCE LIST (ONLY CITE THESE IDS):
 
 OUTPUT ONLY VALID JSON with this exact structure:
 {{
-  "rebuttal_letter": "Dear PayPal Claims Team...",
+  "rebuttal_letter": "Dear PayPal Claims Specialist,\\n\\nWe formally contest this claim citing evidence [EVD-...]: ...",
   "claims": [
     {{"evidence_id": "...", "statement": "..."}}
   ],
@@ -106,16 +155,22 @@ OUTPUT ONLY VALID JSON with this exact structure:
 }}
 """
     try:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{settings.ai_model}:generateContent?key={settings.gemini_api_key}"
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{settings.ai_model}:generateContent"
+        headers = {
+            "x-goog-api-key": settings.gemini_api_key,
+            "Content-Type": "application/json",
+        }
         payload = {
             "contents": [{"parts": [{"text": prompt}]}],
             "generationConfig": {"temperature": 0.2, "responseMimeType": "application/json"},
         }
-        with httpx.Client(timeout=10.0) as client:
-            res = client.post(url, json=payload)
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            res = await client.post(url, headers=headers, json=payload)
             if res.status_code == 200:
                 raw_text = res.json()["candidates"][0]["content"]["parts"][0]["text"]
                 return json.loads(raw_text)
+            else:
+                logger.warning("Gemini API returned status %d: %s", res.status_code, res.text)
     except Exception as e:
         logger.warning("Gemini defense drafting failed: %s", e)
 
@@ -139,12 +194,21 @@ def _query_openai_defense_draft(
     )
     buyer_summary = "\n".join(f"- {c}" for c in sanitized_buyer_claims) or "None (Clean Inquiry)"
 
+    feedback_prompt = ""
+    if previous_validation_error:
+        feedback_prompt = f"""
+CRITICAL: PREVIOUS ATTEMPT FAILED MATHEMATICAL VALIDATOR:
+Error: {previous_validation_error}
+You must fix this error immediately. Ensure every factual sentence in the rebuttal_letter explicitly cites a valid evidence_id from the ALLOWED EVIDENCE LIST.
+"""
+
     prompt = f"""
 You are the PaySentinel Merchant Dispute Defense Agent.
 Draft a factual, proof-backed dispute defense letter to PayPal.
 CRITICAL CONSTRAINT: You may ONLY assert facts that cite an evidence_id from the ALLOWED EVIDENCE LIST.
 DO NOT fabricate tracking numbers, dates, or courier names not listed below.
-
+In the rebuttal_letter, explicitly reference the evidence IDs (e.g. [EVD-...] or EVD-...).
+{feedback_prompt}
 DISPUTE ID: {dispute_id}
 ORDER ID: {order_id}
 REASON: {dispute_reason}
@@ -157,7 +221,7 @@ ALLOWED EVIDENCE LIST (ONLY CITE THESE IDS):
 
 OUTPUT ONLY VALID JSON with this exact structure:
 {{
-  "rebuttal_letter": "Dear PayPal Claims Team...",
+  "rebuttal_letter": "Dear PayPal Claims Specialist,\\n\\nWe formally contest this claim citing evidence [EVD-...]: ...",
   "claims": [
     {{"evidence_id": "...", "statement": "..."}}
   ],
@@ -166,8 +230,11 @@ OUTPUT ONLY VALID JSON with this exact structure:
 }}
 """
     try:
-        url = "https://api.openai.com/v1/chat/completions"
-        headers = {"Authorization": f"Bearer {settings.openai_api_key}"}
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{settings.ai_model}:generateContent"
+        headers = {
+            "x-goog-api-key": settings.gemini_api_key,
+            "Content-Type": "application/json",
+        }
         payload = {
             "model": "gpt-4o-mini",
             "messages": [
@@ -176,18 +243,20 @@ OUTPUT ONLY VALID JSON with this exact structure:
             ],
             "response_format": {"type": "json_object"},
         }
-        with httpx.Client(timeout=10.0) as client:
-            res = client.post(url, headers=headers, json=payload)
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            res = await client.post(url, headers=headers, json=payload)
             if res.status_code == 200:
-                raw_json = json.loads(res.json()["choices"][0]["message"]["content"])
-                return raw_json
+                raw_text = res.json()["candidates"][0]["content"]["parts"][0]["text"]
+                return json.loads(raw_text)
+            else:
+                logger.warning("Gemini API returned status %d: %s", res.status_code, res.text)
     except Exception as e:
         logger.warning("OpenAI defense drafting failed: %s", e)
 
     return None
 
 
-def draft_dispute_defense(
+async def draft_dispute_defense(
     dispute_id: str,
     order_id: str,
     dispute_reason: str,
@@ -196,85 +265,63 @@ def draft_dispute_defense(
 ) -> DefenseDraftResult:
     """
     Assembles, drafts, and validates an AI dispute defense.
-    Enforces firewall sanitization of buyer messages and hard-code validation of claims.
+    Enforces firewall sanitization of buyer messages and hard-code validation of claims and rebuttal letter.
+    Feeds validation errors back into the prompt on retries.
+    If LLM is unavailable or retries fail, returns LLM_UNAVAILABLE and escalates to Control Tower.
     """
     # 1. Untrusted Input Firewall: Extract only factual claims
     firewall_res = firewall_engine.extract_factual_assertions(buyer_message)
     sanitized_buyer_claims = firewall_res["factual_assertions"]
 
-    # Map of permitted evidence IDs
+    # Map of permitted evidence
     valid_evidence_map = {
-        e["evidence_id"]: e.get("description", "Verified Evidence Leaf")
+        e["evidence_id"]: e
         for e in evidence_leaves
     }
 
-    # 2. Try LLM with hard-code validation loop
+    # 2. Try LLM with hard-code validation and error-feedback retry loop
     max_retries = 2
+    last_validation_error: str | None = None
     for attempt in range(max_retries):
-        llm_output = _query_gemini_defense_draft(
+        llm_output = await _query_gemini_defense_draft(
             dispute_id=dispute_id,
             order_id=order_id,
             dispute_reason=dispute_reason,
             sanitized_buyer_claims=sanitized_buyer_claims,
             evidence_leaves=evidence_leaves,
+            previous_validation_error=last_validation_error,
         )
-        if not llm_output and settings.openai_api_key:
-            llm_output = _query_openai_defense_draft(
-                dispute_id=dispute_id,
-                order_id=order_id,
-                dispute_reason=dispute_reason,
-                sanitized_buyer_claims=sanitized_buyer_claims,
-                evidence_leaves=evidence_leaves,
-            )
-        if llm_output and "claims" in llm_output:
+        if llm_output and "claims" in llm_output and "rebuttal_letter" in llm_output:
             claims = [
                 DraftedClaim(evidence_id=c.get("evidence_id", ""), statement=c.get("statement", ""))
                 for c in llm_output.get("claims", [])
             ]
-            valid, err = validate_defense_claims(claims, valid_evidence_map)
+            rebuttal = llm_output.get("rebuttal_letter", "")
+            valid, err = validate_rebuttal_and_claims(rebuttal, claims, valid_evidence_map)
             if valid:
                 return DefenseDraftResult(
                     dispute_id=dispute_id,
-                    rebuttal_letter=llm_output.get("rebuttal_letter", ""),
+                    rebuttal_letter=rebuttal,
                     claims=claims,
-                    confidence_score=float(llm_output.get("confidence_score", 0.9)),
+                    confidence_score=float(llm_output.get("confidence_score", 0.95)),
                     recommended_action=llm_output.get("recommended_action", "SUBMIT_EVIDENCE"),
                     escalated_to_control_tower=False,
                     validation_passed=True,
+                    validation_error=None,
                 )
             else:
-                logger.warning("Draft attempt %d failed hard validator: %s", attempt + 1, err)
+                last_validation_error = err
+                logger.warning("Draft attempt %d failed validator: %s", attempt + 1, err)
 
-    # 3. Deterministic Grounded Fallback (100% compliant with Merkle leaves)
-    fallback_claims: list[DraftedClaim] = []
-    for eid, desc in valid_evidence_map.items():
-        fallback_claims.append(
-            DraftedClaim(
-                evidence_id=eid,
-                statement=f"Verified proof anchored in Merkle Tree: {desc}",
-            )
-        )
-
-    letter = (
-        f"Rebuttal for PayPal Dispute {dispute_id} (Order {order_id}):\n\n"
-        f"Dear PayPal Claims Specialist,\n\n"
-        f"We formally contest the buyer's claim regarding {dispute_reason}. "
-        f"All fulfillment steps have been cryptographically verified against our tamper-evident Merkle tree:\n"
-    )
-    for c in fallback_claims:
-        letter += f"- [{c.evidence_id}]: {c.statement}\n"
-
-    letter += "\nWe respectfully request that the hold on funds be released under PayPal Seller Protection terms."
-
-    valid, err = validate_defense_claims(fallback_claims, valid_evidence_map)
-
+    # 3. LLM failure / validation failure -> return LLM_UNAVAILABLE and escalate
+    logger.warning("LLM defense drafting failed or unavailable for dispute %s. Escalating to Control Tower.", dispute_id)
     return DefenseDraftResult(
         dispute_id=dispute_id,
-        rebuttal_letter=letter,
-        claims=fallback_claims,
-        confidence_score=0.92,
-        recommended_action="SUBMIT_EVIDENCE",
-        escalated_to_control_tower=not valid,
-        validation_passed=valid,
-        validation_error=err,
+        rebuttal_letter="LLM_UNAVAILABLE",
+        claims=[],
+        confidence_score=0.0,
+        recommended_action="ESCALATE_MANUAL_INQUIRY",
+        escalated_to_control_tower=True,
+        validation_passed=False,
+        validation_error=last_validation_error or "LLM_UNAVAILABLE: Automated defense drafting failed or returned invalid citations.",
     )

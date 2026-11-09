@@ -76,7 +76,7 @@ const defaultSession: ApiAgentCommerceSession = {
       actor: 'PAYPAL_SANDBOX',
       action: 'ORDER_CAPTURED_AND_SETTLED',
       description:
-        'PayPal Sandbox processed payment. Order ORD-8419203 captured successfully. Funds placed in merchant escrow.',
+        'PayPal Sandbox processed payment. Order ORD-8419203 captured successfully. Funds placed in merchant settlement hold.',
       timestamp: new Date(Date.now() - 15 * 1000).toISOString(),
       status: 'SUCCESS',
       payload_preview: {
@@ -380,12 +380,17 @@ export default function AgentCommercePage() {
               </div>
               <div>
                 <h3 className="text-sm font-bold text-white">PayPal Sandbox Tunnel</h3>
-                <p className="text-[10px] text-slate-400 font-mono">REST API v2 Orders / Escrow</p>
+                <p className="text-[10px] text-slate-400 font-mono">REST API v2 Orders / Settlement</p>
               </div>
             </div>
-            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-              Connected :8000
-            </span>
+            <div className="flex items-center gap-1.5">
+              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                DATA_SOURCE: SIMULATED
+              </span>
+              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                Connected :8000
+              </span>
+            </div>
           </div>
 
           {/* Settlement Metrics */}
@@ -402,7 +407,7 @@ export default function AgentCommercePage() {
                 </span>
               </div>
               <div className="flex justify-between text-slate-400">
-                <span>Settled Escrow:</span>
+                <span>Settled Reserve:</span>
                 <span className="text-white font-bold">
                   ${selectedProduct.amount.toFixed(2)} USD
                 </span>
@@ -482,7 +487,7 @@ export default function AgentCommercePage() {
             <p className="text-[11px] leading-relaxed">
               {injectAdversarial
                 ? 'Prompt override neutralized. Decision safely held in Control Tower Approval Queue.'
-                : 'Irrefutable proof packet submitted to PayPal Disputes API. Funds defended.'}
+                : 'Cryptographically verified proof packet submitted to PayPal Disputes API. Funds defended.'}
             </p>
           </div>
         </div>

@@ -366,6 +366,9 @@ export default function TransactionTable() {
               ? 'FastAPI Live Ledger Synced (:8000/api/transactions)'
               : 'Standby / Live Ledger Ready'}
           </span>
+          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">
+            DATA: {backendSynced ? 'PERSISTED_SQLITE' : 'SIMULATED'}
+          </span>
           <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#FF6900]/15 text-[#FF6900] border border-[#FF6900]/30 flex items-center gap-1">
             <TableIcon className="w-2.5 h-2.5" /> AG Grid v36 Enterprise Master-Detail ($5,000 Prize)
           </span>
@@ -564,7 +567,7 @@ export default function TransactionTable() {
                 {selectedTxn.hasDispute ? (
                   <div className="space-y-2 text-xs">
                     <p className="text-slate-300 leading-relaxed">
-                      This transaction is currently under a buyer claim. Evidence has been hashed with SHA-256 and anchored in the Visa CE 3.0 Merkle tree.
+                      This transaction is currently under a buyer claim. Evidence has been hashed with SHA-256 and anchored in the cryptographic Merkle tree.
                     </p>
                     <div className="flex items-center gap-3 pt-2">
                       <Link
