@@ -3,7 +3,7 @@
 from fastapi import APIRouter
 
 from app.models.schemas import ArenaRunRequest, LiveAttackRequest, LiveAttackResult
-from app.services.arena_engine import execute_arena_simulation, evaluate_live_attack
+from app.services.arena_engine import evaluate_live_attack, execute_arena_simulation, run_corpus_evaluation
 from app.services.mock_data import get_arena_simulations
 
 router = APIRouter(prefix="/api/arena", tags=["Dispute Arena"])
@@ -28,5 +28,13 @@ def evaluate_custom_attack(body: LiveAttackRequest):
     """Evaluate a custom judge/red-teamer attack through the Untrusted Input Firewall."""
     result = evaluate_live_attack(body)
     return result
+
+
+@router.post("/eval")
+def run_firewall_eval():
+    """Run full evaluation corpus against Untrusted Input Firewall and return live metrics."""
+    result = run_corpus_evaluation()
+    return result
+
 
 
