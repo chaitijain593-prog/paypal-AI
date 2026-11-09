@@ -399,31 +399,77 @@ def tamper_proof_record(proof_id: str) -> bool:
 
 
 def verify_proof_record(proof_id: str) -> ProofVerifyResult | None:
-    """Verifies proof record integrity and validates the Ed25519 signature."""
-    proof = next((p for p in PROOF_STORE if p.id == proof_id), None)
-    if not proof:
+    """
+    Verifies proof record integrity strictly from RAW_EVIDENCE_STORE:
+    1. Recomputes leaf hash from stored raw bytes.
+    2. Verifies the Merkle audit path against the committed root.
+    3. Verifies the Ed25519 signature with verify_merkle_root_signature(root, signed_at, signature).
+    4. Sets status to VERIFIED or TAMPERED from these computations only.
+    5. Uses real recorded ingestion/signing times.
+    """
+    clean_id = proof_id.strip().upper()
+    stored = RAW_EVIDENCE_STORE.get(clean_id)
+    if not stored:
         return None
 
-    is_tampered = proof.original_hash != proof.current_hash
-    status = ProofStatus.TAMPERED if is_tampered else ProofStatus.VERIFIED
+    # 1. Recompute leaf hash from raw evidence bytes
+    recomputed_leaf_hash = hash_leaf(stored.raw_bytes)
+    hash_matches = recomputed_leaf_hash == stored.original_leaf_hash
 
-    # Check Ed25519 signature of root
-    sig_valid = verify_merkle_root_signature(ACTIVE_MERKLE_TREE.root_hash, ACTIVE_MERKLE_TREE.ed25519_signature)
+    # 2. Verify Merkle audit path against committed root
+    merkle_valid = MerkleTree.verify_proof(stored.raw_bytes, stored.proof_path, stored.root_hash)
 
+    # 3. Verify Ed25519 root signature
+    sig_valid = verify_merkle_root_signature(stored.root_hash, stored.signed_at, stored.ed25519_signature)
+
+    # 4. Overall integrity: if the leaf data is tampered, the signature of the tree
+    # no longer validates the current state of this proof record
+    is_valid = hash_matches and merkle_valid
+    status = ProofStatus.VERIFIED if is_valid else ProofStatus.TAMPERED
+
+    # Synchronize PROOF_STORE entry
+    for p in PROOF_STORE:
+        if p.id.strip().upper() == clean_id:
+            p.current_hash = recomputed_leaf_hash
+            p.status = status
+            break
+
+    # 5. Real recorded timestamps in chain of custody
+    now_iso = datetime.now(timezone.utc).isoformat()
     chain_of_custody = [
-        {"timestamp": "2026-10-15T14:34:22Z", "action": "INGESTED", "actor": "carrier_api", "hash": proof.original_hash[:16] + "..."},
-        {"timestamp": "2026-10-15T14:35:00Z", "action": "MERKLE_INCLUDED_RFC6962", "actor": "merkle_engine", "hash": ACTIVE_MERKLE_TREE.root_hash[:16] + "..."},
-        {"timestamp": "2026-10-15T14:35:01Z", "action": "ED25519_ROOT_SIGNED", "actor": "merchant_keys", "hash": ACTIVE_MERKLE_TREE.ed25519_signature[:16] + "..."},
-        {"timestamp": datetime.now(timezone.utc).isoformat(), "action": "VERIFIED", "actor": "paysentinel_proof_engine", "hash": proof.current_hash[:16] + "..."},
+        {
+            "timestamp": stored.ingested_at,
+            "action": "INGESTED",
+            "actor": "carrier_api",
+            "hash": f"{stored.original_leaf_hash[:16]}...",
+        },
+        {
+            "timestamp": stored.merkle_included_at,
+            "action": "MERKLE_INCLUDED_RFC6962",
+            "actor": "merkle_engine",
+            "hash": f"{stored.root_hash[:16]}...",
+        },
+        {
+            "timestamp": stored.signed_at,
+            "action": "ED25519_ROOT_SIGNED",
+            "actor": "merchant_keys",
+            "hash": f"{stored.ed25519_signature[:16]}...",
+        },
+        {
+            "timestamp": now_iso,
+            "action": "VERIFIED_FROM_RAW_BYTES" if is_valid else "TAMPER_DETECTED",
+            "actor": "paysentinel_proof_engine",
+            "hash": f"{recomputed_leaf_hash[:16]}...",
+        },
     ]
 
     return ProofVerifyResult(
-        proof_id=proof.id,
-        evidence_id=proof.evidence_id,
-        filename=proof.filename,
-        original_hash=proof.original_hash,
-        computed_hash=proof.current_hash,
-        match=not is_tampered,
+        proof_id=stored.proof_id,
+        evidence_id=stored.evidence_id,
+        filename=stored.filename,
+        original_hash=stored.original_leaf_hash,
+        computed_hash=recomputed_leaf_hash,
+        match=is_valid,
         status=status,
         verified_at=datetime.now(timezone.utc),
         chain_of_custody=chain_of_custody,

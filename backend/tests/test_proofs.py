@@ -194,6 +194,32 @@ def test_random_per_proof_salts():
     assert v2["signature_verified"] is True
 
 
+def test_verify_proof_record_comprehensive():
+    """Verify proof record behavior on valid, tampered, wrong signature, and unknown id."""
+    # 1. Unknown ID -> returns None / 404
+    assert verify_proof_record("NON-EXISTENT-PROOF") is None
+    res_unknown = client.get("/api/proofs/NON-EXISTENT-PROOF/verify")
+    assert res_unknown.status_code == 404
+
+    # 2. Valid proof verify OK without NameError or TypeError
+    res_valid = verify_proof_record("PRF-003")
+    assert res_valid is not None
+    assert res_valid.match is True
+    assert res_valid.signature_verified is True
+    assert res_valid.status in ("VERIFIED", "verified")
+
+    # 3. Wrong signature -> signature_verified=False
+    from app.services.proof_engine import RAW_EVIDENCE_STORE
+    orig_sig = RAW_EVIDENCE_STORE["PRF-003"].ed25519_signature
+    try:
+        RAW_EVIDENCE_STORE["PRF-003"].ed25519_signature = "bad" * 32
+        res_bad_sig = verify_proof_record("PRF-003")
+        assert res_bad_sig is not None
+        assert res_bad_sig.signature_verified is False
+    finally:
+        RAW_EVIDENCE_STORE["PRF-003"].ed25519_signature = orig_sig
+
+
 def test_ed25519_key_caching_and_no_auto_regeneration(tmp_path, monkeypatch):
     """Verify Ed25519 keypair is cached in memory and fails loudly on corruption."""
     import pytest
