@@ -1,6 +1,8 @@
 """Proof Engine routes — SHA-256 evidence verification."""
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+
+from app.core.auth import ReviewerContext, get_current_reviewer
 
 from app.models.schemas import GenerateProofRequest, GenerateProofResponse
 from app.services.proof_engine import (
@@ -40,7 +42,10 @@ def list_proofs():
 
 
 @router.post("/generate", response_model=GenerateProofResponse)
-def generate_proof(body: GenerateProofRequest):
+def generate_proof(
+    body: GenerateProofRequest,
+    reviewer: ReviewerContext = Depends(get_current_reviewer),
+):
     """Dynamically generate a verified Merkle proof tree with salted attribute commitments."""
     return generate_dynamic_merkle_proof(body)
 
@@ -55,7 +60,10 @@ def verify_proof(proof_id: str):
 
 
 @router.post("/{proof_id}/tamper")
-def tamper_proof(proof_id: str):
+def tamper_proof(
+    proof_id: str,
+    reviewer: ReviewerContext = Depends(get_current_reviewer),
+):
     """Simulates evidence tampering by flipping a stored raw evidence byte."""
     success = tamper_proof_record(proof_id)
     if not success:

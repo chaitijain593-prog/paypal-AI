@@ -61,6 +61,24 @@ export default function TopNav({ onToggleMobileMenu }: TopNavProps) {
           <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#0070BA] ring-2 ring-[#0B0F17]" />
         </div>
 
+        {/* Reviewer Role Switcher for Maker-Checker */}
+        <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white/[0.04] border border-white/[0.08]">
+          <span className="text-[10px] text-slate-400 font-mono">Role:</span>
+          <select
+            aria-label="Reviewer Role"
+            className="bg-transparent text-xs text-[#3B9EFF] font-semibold focus:outline-none cursor-pointer"
+            defaultValue="SENIOR_RISK_OFFICER"
+            onChange={(e) => {
+              const role = e.target.value as 'SENIOR_RISK_OFFICER' | 'OPERATOR' | 'ADMIN';
+              import('@/lib/api').then(({ setReviewerRole }) => setReviewerRole(role));
+            }}
+          >
+            <option value="SENIOR_RISK_OFFICER" className="bg-[#0B0F17] text-white">Senior Risk Officer</option>
+            <option value="OPERATOR" className="bg-[#0B0F17] text-white">Operator</option>
+            <option value="ADMIN" className="bg-[#0B0F17] text-white">Admin</option>
+          </select>
+        </div>
+
         {/* User Pill */}
         <div className="flex items-center gap-2 pl-3 border-l border-white/[0.06]">
           <div className="w-8 h-8 rounded-full bg-[#0070BA] flex items-center justify-center text-xs font-bold text-white shadow-sm">

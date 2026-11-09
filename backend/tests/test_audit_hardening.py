@@ -74,6 +74,14 @@ def test_mutating_routes_require_authentication():
     )
     assert res_bad.status_code == 401
 
+    # 6. Forged token with tok_ pattern (e.g. tok_admin_Mallory) MUST return 401
+    res_forged = client.post(
+        "/api/control-tower/CT-9021/approve",
+        headers={"Authorization": "Bearer tok_admin_Mallory"},
+        json={"reviewer_notes": "Forged admin token"},
+    )
+    assert res_forged.status_code == 401
+
 
 # ── 2. Reviewer Identity Derived Strictly from Token (Never from Body) ───────
 

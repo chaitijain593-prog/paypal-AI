@@ -6,8 +6,15 @@
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
-const DEFAULT_API_TOKEN =
-  process.env.NEXT_PUBLIC_API_TOKEN || 'tok_senior_risk_001';
+let currentReviewerRole: 'SENIOR_RISK_OFFICER' | 'OPERATOR' | 'ADMIN' = 'SENIOR_RISK_OFFICER';
+
+export function setReviewerRole(role: 'SENIOR_RISK_OFFICER' | 'OPERATOR' | 'ADMIN') {
+  currentReviewerRole = role;
+}
+
+export function getReviewerRole() {
+  return currentReviewerRole;
+}
 
 export interface ApiBuyerInfo {
   name: string;
@@ -291,11 +298,15 @@ export interface ApiDashboardStats {
 
 async function request<T>(endpoint: string, options?: RequestInit): Promise<T | null> {
   try {
-    const res = await fetch(`${API_BASE_URL}${endpoint}`, {
+    // If running in browser, proxy mutating calls or all calls through /api/proxy
+    const isBrowser = typeof window !== 'undefined';
+    const targetUrl = isBrowser ? `/api/proxy${endpoint.replace(/^\/api/, '')}` : `${API_BASE_URL}${endpoint}`;
+
+    const res = await fetch(targetUrl, {
       ...options,
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${DEFAULT_API_TOKEN}`,
+        'x-reviewer-role': currentReviewerRole,
         ...(options?.headers || {}),
       },
       next: { revalidate: 0 }, // Disable Next.js caching for real-time data

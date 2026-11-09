@@ -142,8 +142,9 @@ def test_tamper_demo_flips_stored_byte():
     assert res_before.status_code == 200
     assert res_before.json()["match"] is True
 
-    # Call tamper endpoint
-    res_tamper = client.post("/api/proofs/PRF-002/tamper")
+    # Call tamper endpoint (mutating endpoint requires auth)
+    auth = {"Authorization": "Bearer tok_senior_risk_001"}
+    res_tamper = client.post("/api/proofs/PRF-002/tamper", headers=auth)
     assert res_tamper.status_code == 200
     assert res_tamper.json()["status"] == "TAMPERED"
 
@@ -171,11 +172,12 @@ def test_random_per_proof_salts():
         "use_salted_commitments": True,
     }
 
-    res1 = client.post("/api/proofs/generate", json=req_body)
+    auth = {"Authorization": "Bearer tok_senior_risk_001"}
+    res1 = client.post("/api/proofs/generate", headers=auth, json=req_body)
     assert res1.status_code == 200
     data1 = res1.json()
 
-    res2 = client.post("/api/proofs/generate", json=req_body)
+    res2 = client.post("/api/proofs/generate", headers=auth, json=req_body)
     assert res2.status_code == 200
     data2 = res2.json()
 

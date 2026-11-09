@@ -1,7 +1,8 @@
 """Dispute routes — list, detail, and AI-powered respond."""
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from app.core.auth import ReviewerContext, get_current_reviewer
 from app.models.schemas import Dispute, DisputeResponse, DisputeResponseResult
 from app.services.mock_data import get_dispute_by_id, get_disputes, respond_to_dispute
 
@@ -25,7 +26,11 @@ def get_dispute(dispute_id: str):
 
 
 @router.post("/{dispute_id}/respond", response_model=DisputeResponseResult)
-def respond_dispute(dispute_id: str, body: DisputeResponse):
+def respond_dispute(
+    dispute_id: str,
+    body: DisputeResponse,
+    reviewer: ReviewerContext = Depends(get_current_reviewer),
+):
     """Submit a response to a dispute with AI analysis."""
     result = respond_to_dispute(dispute_id, body)
     if not result:
