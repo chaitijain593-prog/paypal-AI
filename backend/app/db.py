@@ -41,9 +41,24 @@ def get_db_connection() -> sqlite3.Connection:
     return conn
 
 
-def compute_audit_hash(prev_hash: str, actor: str, action: str, new_state: str, payload_hash: str, paypal_api_status: str) -> str:
-    """Computes SHA-256 hash over previous entry's hash and current row's critical data."""
-    canonical_repr = f"{prev_hash}|{actor}|{action}|{new_state}|{payload_hash}|{paypal_api_status}"
+def compute_audit_hash(
+    prev_hash: str,
+    item_id: str,
+    timestamp: str,
+    actor: str,
+    action: str,
+    previous_state: str,
+    new_state: str,
+    reviewer_notes: str | None,
+    payload_hash: str,
+    paypal_api_status: str,
+) -> str:
+    """Computes SHA-256 hash over previous entry's hash, item_id, timestamp, actor, action, previous_state, new_state, reviewer_notes, payload_hash, and paypal_api_status."""
+    notes = reviewer_notes or ""
+    canonical_repr = (
+        f"{prev_hash}|{item_id}|{timestamp}|{actor}|{action}|"
+        f"{previous_state}|{new_state}|{notes}|{payload_hash}|{paypal_api_status}"
+    )
     return hashlib.sha256(canonical_repr.encode("utf-8")).hexdigest()
 
 
@@ -105,6 +120,16 @@ def init_db() -> None:
             )
         """)
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_audit_item_id ON audit_log(item_id)")
+        cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS uq_audit_item_prev_hash ON audit_log(item_id, prev_hash)")
+
+        # 2b. Audit Heads (Committed head hash per item to detect truncation)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS audit_heads (
+                item_id TEXT PRIMARY KEY,
+                head_hash TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+        """)
 
         # Auto-migrate columns if table already existed
         try:
@@ -187,16 +212,23 @@ def init_db() -> None:
 def verify_audit_hash_chain(item_id: str) -> tuple[bool, str]:
     """
     Verifies that the audit log for a given item is mathematically intact.
+    Detects forks, broken links, field tampering, and tail truncation against audit_heads.
     Returns (True, "OK") or (False, "Failure reason").
     """
     with get_db_connection() as conn:
         cursor = conn.cursor()
+        cursor.execute("SELECT head_hash FROM audit_heads WHERE item_id = ?", (item_id,))
+        head_row = cursor.fetchone()
+        committed_head = head_row["head_hash"] if head_row else None
+
         cursor.execute(
             "SELECT * FROM audit_log WHERE item_id = ? ORDER BY id ASC",
             (item_id,)
         )
         rows = cursor.fetchall()
         if not rows:
+            if committed_head:
+                return False, f"Audit log truncation detected: audit records deleted, expected head hash '{committed_head}'."
             return True, "No audit records found."
 
         expected_prev_hash = "GENESIS"
@@ -206,9 +238,13 @@ def verify_audit_hash_chain(item_id: str) -> tuple[bool, str]:
 
             recomputed = compute_audit_hash(
                 prev_hash=row["prev_hash"],
+                item_id=row["item_id"],
+                timestamp=row["timestamp"],
                 actor=row["actor"],
                 action=row["action"],
+                previous_state=row["previous_state"],
                 new_state=row["new_state"],
+                reviewer_notes=row["reviewer_notes"],
                 payload_hash=row["payload_hash"],
                 paypal_api_status=row["paypal_api_status"],
             )
@@ -216,6 +252,14 @@ def verify_audit_hash_chain(item_id: str) -> tuple[bool, str]:
                 return False, f"Tampered entry at step {idx}: computed hash '{recomputed}', found '{row['entry_hash']}'"
 
             expected_prev_hash = row["entry_hash"]
+
+        # Truncation check: last row's entry_hash must match committed head_hash
+        if committed_head and rows[-1]["entry_hash"] != committed_head:
+            return (
+                False,
+                f"Audit log truncation detected: latest entry hash '{rows[-1]['entry_hash']}' "
+                f"does not match committed head hash '{committed_head}'."
+            )
 
     return True, f"Hash chain verified across {len(rows)} entries."
 
@@ -270,12 +314,16 @@ def get_latest_audit_hash(item_id: str) -> str:
     """Returns the entry_hash of the most recent audit entry, or 'GENESIS' if none."""
     with get_db_connection() as conn:
         cursor = conn.cursor()
+        cursor.execute("SELECT head_hash FROM audit_heads WHERE item_id = ?", (item_id,))
+        row = cursor.fetchone()
+        if row:
+            return row["head_hash"]
         cursor.execute(
             "SELECT entry_hash FROM audit_log WHERE item_id = ? ORDER BY id DESC LIMIT 1",
             (item_id,)
         )
-        row = cursor.fetchone()
-        return row["entry_hash"] if row else "GENESIS"
+        row2 = cursor.fetchone()
+        return row2["entry_hash"] if row2 else "GENESIS"
 
 
 def append_audit_log_entry(
@@ -292,22 +340,42 @@ def append_audit_log_entry(
     paypal_response_json: str | None = None,
 ) -> tuple[str, str]:
     """
-    Appends a new hash-chained audit log row with PayPal debug ID and response payload.
+    Appends a new hash-chained audit log row using BEGIN IMMEDIATE and UNIQUE(item_id, prev_hash).
+    Prevents forks, binds all item metadata and notes into the entry hash, and updates audit_heads.
     Returns (prev_hash, entry_hash).
     """
-    prev_hash = get_latest_audit_hash(item_id)
-    entry_hash = compute_audit_hash(
-        prev_hash=prev_hash,
-        actor=actor,
-        action=action,
-        new_state=new_state,
-        payload_hash=payload_hash,
-        paypal_api_status=paypal_api_status,
-    )
     ts = (timestamp or datetime.now(timezone.utc)).isoformat()
 
     with get_db_connection() as conn:
         cursor = conn.cursor()
+        # Acquire reserved lock immediately to prevent concurrent head races
+        cursor.execute("BEGIN IMMEDIATE")
+
+        cursor.execute("SELECT head_hash FROM audit_heads WHERE item_id = ?", (item_id,))
+        head_row = cursor.fetchone()
+        if head_row:
+            prev_hash = head_row["head_hash"]
+        else:
+            cursor.execute(
+                "SELECT entry_hash FROM audit_log WHERE item_id = ? ORDER BY id DESC LIMIT 1",
+                (item_id,)
+            )
+            latest_log = cursor.fetchone()
+            prev_hash = latest_log["entry_hash"] if latest_log else "GENESIS"
+
+        entry_hash = compute_audit_hash(
+            prev_hash=prev_hash,
+            item_id=item_id,
+            timestamp=ts,
+            actor=actor,
+            action=action,
+            previous_state=previous_state,
+            new_state=new_state,
+            reviewer_notes=reviewer_notes,
+            payload_hash=payload_hash,
+            paypal_api_status=paypal_api_status,
+        )
+
         cursor.execute(
             """
             INSERT INTO audit_log (
@@ -332,6 +400,18 @@ def append_audit_log_entry(
                 paypal_response_json,
             ),
         )
+
+        cursor.execute(
+            """
+            INSERT INTO audit_heads (item_id, head_hash, updated_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(item_id) DO UPDATE SET
+                head_hash = excluded.head_hash,
+                updated_at = excluded.updated_at
+            """,
+            (item_id, entry_hash, ts),
+        )
+
         conn.commit()
 
     return prev_hash, entry_hash

@@ -32,6 +32,10 @@ class Settings:
     app_port: int = int(os.getenv("APP_PORT", "8000"))
     app_host: str = os.getenv("APP_HOST", "0.0.0.0")
 
+    # Security & Financial Caps
+    high_value_amount_cap: float = float(os.getenv("HIGH_VALUE_AMOUNT_CAP", "500.00"))
+    api_tokens: str = os.getenv("API_TOKENS", "")
+
     # CORS
     cors_origins: list[str] = os.getenv(
         "CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000"

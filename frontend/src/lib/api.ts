@@ -6,6 +6,9 @@
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
+const DEFAULT_API_TOKEN =
+  process.env.NEXT_PUBLIC_API_TOKEN || 'tok_senior_risk_001';
+
 export interface ApiBuyerInfo {
   name: string;
   email: string;
@@ -292,6 +295,7 @@ async function request<T>(endpoint: string, options?: RequestInit): Promise<T | 
       ...options,
       headers: {
         'Content-Type': 'application/json',
+        Authorization: `Bearer ${DEFAULT_API_TOKEN}`,
         ...(options?.headers || {}),
       },
       next: { revalidate: 0 }, // Disable Next.js caching for real-time data

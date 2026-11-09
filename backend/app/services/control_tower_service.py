@@ -14,6 +14,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from app.core.config import get_settings
 from app.db import (
     append_audit_log_entry,
     compute_audit_hash,
@@ -38,6 +39,11 @@ _NOW = datetime.now(timezone.utc)
 
 class MakerCheckerError(Exception):
     """Raised when the reviewer is the same actor as the creator."""
+    pass
+
+
+class RoleRequirementError(Exception):
+    """Raised when a non-senior reviewer attempts to approve an item exceeding the amount cap."""
     pass
 
 
@@ -95,23 +101,29 @@ def _build_initial_seed() -> list[ControlTowerItem]:
         "We respectfully request that the hold on these funds be released and this claim resolved in seller's favor."
     )
 
+    ts_1 = (now - timedelta(hours=2)).isoformat()
+    note_1 = "High-value transaction ($1,250.00 > $500.00 limit). All proof verified, routed to human approval queue."
     initial_audit_1 = AuditTrailEntry(
         timestamp=now - timedelta(hours=2),
         actor="AI Dispute Engine (PaySentinel)",
         action="PAUSED_FOR_HUMAN_REVIEW",
         previous_state="INGESTED",
         new_state=ControlTowerStatus.PENDING_REVIEW.value,
-        reviewer_notes="High-value transaction ($1,250.00 > $500.00 limit). All proof verified, routed to human approval queue.",
+        reviewer_notes=note_1,
         payload_hash=_sha256(letter_1),
         paypal_api_status="PAUSED_LOCAL_QUEUE",
         prev_hash="GENESIS",
         entry_hash=compute_audit_hash(
-            "GENESIS",
-            "AI Dispute Engine (PaySentinel)",
-            "PAUSED_FOR_HUMAN_REVIEW",
-            ControlTowerStatus.PENDING_REVIEW.value,
-            _sha256(letter_1),
-            "PAUSED_LOCAL_QUEUE",
+            prev_hash="GENESIS",
+            item_id="CT-9021",
+            timestamp=ts_1,
+            actor="AI Dispute Engine (PaySentinel)",
+            action="PAUSED_FOR_HUMAN_REVIEW",
+            previous_state="INGESTED",
+            new_state=ControlTowerStatus.PENDING_REVIEW.value,
+            reviewer_notes=note_1,
+            payload_hash=_sha256(letter_1),
+            paypal_api_status="PAUSED_LOCAL_QUEUE",
         ),
     )
 
@@ -176,23 +188,29 @@ def _build_initial_seed() -> list[ControlTowerItem]:
         "We are willing to facilitate return of the unit for inspection if customer provides photographs of the switches received."
     )
 
+    ts_2 = (now - timedelta(hours=4)).isoformat()
+    note_2 = "Confidence 0.62 < 0.80 cutoff. Courier photo unclear and buyer message contained quarantined prompt injection attempt."
     initial_audit_2 = AuditTrailEntry(
         timestamp=now - timedelta(hours=4),
         actor="AI Dispute Engine (PaySentinel)",
         action="PAUSED_FOR_HUMAN_REVIEW",
         previous_state="INGESTED",
         new_state=ControlTowerStatus.PENDING_REVIEW.value,
-        reviewer_notes="Confidence 0.62 < 0.80 cutoff. Courier photo unclear and buyer message contained quarantined prompt injection attempt.",
+        reviewer_notes=note_2,
         payload_hash=_sha256(letter_2),
         paypal_api_status="PAUSED_LOCAL_QUEUE",
         prev_hash="GENESIS",
         entry_hash=compute_audit_hash(
-            "GENESIS",
-            "AI Dispute Engine (PaySentinel)",
-            "PAUSED_FOR_HUMAN_REVIEW",
-            ControlTowerStatus.PENDING_REVIEW.value,
-            _sha256(letter_2),
-            "PAUSED_LOCAL_QUEUE",
+            prev_hash="GENESIS",
+            item_id="CT-9022",
+            timestamp=ts_2,
+            actor="AI Dispute Engine (PaySentinel)",
+            action="PAUSED_FOR_HUMAN_REVIEW",
+            previous_state="INGESTED",
+            new_state=ControlTowerStatus.PENDING_REVIEW.value,
+            reviewer_notes=note_2,
+            payload_hash=_sha256(letter_2),
+            paypal_api_status="PAUSED_LOCAL_QUEUE",
         ),
     )
 
@@ -248,23 +266,29 @@ def _build_initial_seed() -> list[ControlTowerItem]:
         "Recommended action: Concede claim immediately via PayPal Refund API to waive dispute fee and file an insurance claim with USPS."
     )
 
+    ts_3 = (now - timedelta(hours=6)).isoformat()
+    note_3 = "'Know When to Fold' triggered. Courier lost package in transit. Recommending concession to protect $15 dispute penalty fee."
     initial_audit_3 = AuditTrailEntry(
         timestamp=now - timedelta(hours=6),
         actor="AI Dispute Engine (PaySentinel)",
         action="PAUSED_FOR_HUMAN_REVIEW",
         previous_state="INGESTED",
         new_state=ControlTowerStatus.PENDING_REVIEW.value,
-        reviewer_notes="'Know When to Fold' triggered. Courier lost package in transit. Recommending concession to protect $15 dispute penalty fee.",
+        reviewer_notes=note_3,
         payload_hash=_sha256(letter_3),
         paypal_api_status="PAUSED_LOCAL_QUEUE",
         prev_hash="GENESIS",
         entry_hash=compute_audit_hash(
-            "GENESIS",
-            "AI Dispute Engine (PaySentinel)",
-            "PAUSED_FOR_HUMAN_REVIEW",
-            ControlTowerStatus.PENDING_REVIEW.value,
-            _sha256(letter_3),
-            "PAUSED_LOCAL_QUEUE",
+            prev_hash="GENESIS",
+            item_id="CT-9023",
+            timestamp=ts_3,
+            actor="AI Dispute Engine (PaySentinel)",
+            action="PAUSED_FOR_HUMAN_REVIEW",
+            previous_state="INGESTED",
+            new_state=ControlTowerStatus.PENDING_REVIEW.value,
+            reviewer_notes=note_3,
+            payload_hash=_sha256(letter_3),
+            paypal_api_status="PAUSED_LOCAL_QUEUE",
         ),
     )
 
@@ -393,6 +417,7 @@ class ControlTowerStore:
         self,
         item_id: str,
         reviewer_name: str = "Merchant Admin",
+        reviewer_role: str = "SENIOR_RISK_OFFICER",
         reviewer_notes: str | None = None,
     ) -> ControlTowerItem:
         item = self._items.get(item_id)
@@ -402,6 +427,15 @@ class ControlTowerStore:
         # Maker-Checker Constraint: Reviewer cannot be the creator
         if reviewer_name and reviewer_name.strip().lower() == item.creator_name.strip().lower():
             raise MakerCheckerError("Maker cannot be checker: reviewer must be different from item creator")
+
+        # Role Requirement above Configured Amount Cap
+        settings = get_settings()
+        senior_roles = {"SENIOR_RISK_OFFICER", "RISK_LEAD", "EXECUTIVE", "ADMIN"}
+        if item.amount > settings.high_value_amount_cap and reviewer_role not in senior_roles:
+            raise RoleRequirementError(
+                f"Dispute amount (${item.amount:.2f}) exceeds policy cap (${settings.high_value_amount_cap:.2f}). "
+                f"Senior approval required ({', '.join(sorted(senior_roles))}), but reviewer has role '{reviewer_role}'."
+            )
 
         # Allow submission only from PENDING_REVIEW or retrying from FAILED
         if item.status not in (ControlTowerStatus.PENDING_REVIEW, ControlTowerStatus.FAILED):
@@ -533,6 +567,7 @@ class ControlTowerStore:
         updated_action: str | None,
         reviewer_name: str,
         reviewer_notes: str,
+        reviewer_role: str = "SENIOR_RISK_OFFICER",
     ) -> ControlTowerItem:
         item = self._items.get(item_id)
         if not item:
@@ -541,6 +576,15 @@ class ControlTowerStore:
         # Maker-Checker Constraint
         if reviewer_name and reviewer_name.strip().lower() == item.creator_name.strip().lower():
             raise MakerCheckerError("Maker cannot be checker: reviewer must be different from item creator")
+
+        # Role Requirement above Configured Amount Cap
+        settings = get_settings()
+        senior_roles = {"SENIOR_RISK_OFFICER", "RISK_LEAD", "EXECUTIVE", "ADMIN"}
+        if item.amount > settings.high_value_amount_cap and reviewer_role not in senior_roles:
+            raise RoleRequirementError(
+                f"Dispute amount (${item.amount:.2f}) exceeds policy cap (${settings.high_value_amount_cap:.2f}). "
+                f"Senior approval required ({', '.join(sorted(senior_roles))}), but reviewer has role '{reviewer_role}'."
+            )
 
         if item.status not in (ControlTowerStatus.PENDING_REVIEW, ControlTowerStatus.FAILED):
             raise ValueError(f"Item {item_id} is already in state '{item.status.value}' and cannot be edited.")
@@ -679,6 +723,7 @@ class ControlTowerStore:
         resolution_strategy: str,
         reviewer_name: str,
         reviewer_notes: str,
+        reviewer_role: str = "SENIOR_RISK_OFFICER",
     ) -> ControlTowerItem:
         item = self._items.get(item_id)
         if not item:
@@ -687,6 +732,15 @@ class ControlTowerStore:
         # Maker-Checker Constraint
         if reviewer_name and reviewer_name.strip().lower() == item.creator_name.strip().lower():
             raise MakerCheckerError("Maker cannot be checker: reviewer must be different from item creator")
+
+        # Role Requirement above Configured Amount Cap
+        settings = get_settings()
+        senior_roles = {"SENIOR_RISK_OFFICER", "RISK_LEAD", "EXECUTIVE", "ADMIN"}
+        if item.amount > settings.high_value_amount_cap and reviewer_role not in senior_roles:
+            raise RoleRequirementError(
+                f"Dispute amount (${item.amount:.2f}) exceeds policy cap (${settings.high_value_amount_cap:.2f}). "
+                f"Senior approval required ({', '.join(sorted(senior_roles))}), but reviewer has role '{reviewer_role}'."
+            )
 
         if item.status not in (ControlTowerStatus.PENDING_REVIEW, ControlTowerStatus.FAILED):
             raise ValueError(f"Item {item_id} is already in state '{item.status.value}' and cannot be rejected.")

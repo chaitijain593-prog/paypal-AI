@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 from app.main import app
 
 client = TestClient(app)
+AUTH = {"Authorization": "Bearer tok_senior_risk_001"}
 
 def test_control_tower_lifecycle():
     print(">>> 1. Testing GET /api/control-tower/pending...")
@@ -21,7 +22,8 @@ def test_control_tower_lifecycle():
     print(">>> 2. Testing Case 1 (High-Value): POST /api/control-tower/CT-9021/approve...")
     res = client.post(
         "/api/control-tower/CT-9021/approve",
-        json={"reviewer_name": "Chief Risk Officer", "reviewer_notes": "Physical signature verified with FedEx tracking."}
+        headers=AUTH,
+        json={"reviewer_notes": "Physical signature verified with FedEx tracking."}
     )
     assert res.status_code == 200
     item = res.json()
@@ -35,7 +37,8 @@ def test_control_tower_lifecycle():
     print(">>> 3. Testing Idempotency on CT-9021 (Double Approval)...")
     res_idempotent = client.post(
         "/api/control-tower/CT-9021/approve",
-        json={"reviewer_name": "Chief Risk Officer"}
+        headers=AUTH,
+        json={"reviewer_notes": "Duplicate attempt"}
     )
     assert res_idempotent.status_code == 409
     print("  [PASS] Idempotency enforced: 409 Conflict returned on re-approval.")
@@ -43,10 +46,10 @@ def test_control_tower_lifecycle():
     print(">>> 4. Testing Case 2 (Low-Confidence & Prompt Injection): POST /api/control-tower/CT-9022/edit...")
     res = client.post(
         "/api/control-tower/CT-9022/edit",
+        headers=AUTH,
         json={
             "updated_defense_letter": "REVISED BY MERCHANT: Customer build verified by serial QC-9941. Offering replacement switch pack.",
             "updated_action": "SUBMIT_EVIDENCE",
-            "reviewer_name": "Senior Support Lead",
             "reviewer_notes": "Neutralized prompt injection and offered targeted switch pack replacement."
         }
     )
@@ -60,9 +63,9 @@ def test_control_tower_lifecycle():
     print(">>> 5. Testing Case 3 (Know When to Fold): POST /api/control-tower/CT-9023/reject...")
     res = client.post(
         "/api/control-tower/CT-9023/reject",
+        headers=AUTH,
         json={
             "resolution_strategy": "CONCEDE_AND_REFUND",
-            "reviewer_name": "Dispute Specialist",
             "reviewer_notes": "Conceded claim to save $15 dispute fee. USPS claim filed separately."
         }
     )
@@ -82,7 +85,7 @@ def test_control_tower_lifecycle():
     print(f"  [PASS] All 3 items resolved. Total fees saved: ${data_all['kpis']['fees_saved']}")
 
     print(">>> 7. Testing POST /api/control-tower/reset...")
-    res_reset = client.post("/api/control-tower/reset")
+    res_reset = client.post("/api/control-tower/reset", headers=AUTH)
     assert res_reset.status_code == 200
     assert res_reset.json()["kpis"]["pending_count"] == 3
     print("  [PASS] Store reset successfully back to 3 pending items.")

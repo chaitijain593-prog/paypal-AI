@@ -26,13 +26,14 @@ from app.services.control_tower_service import ControlTowerStore, control_tower_
 from app.services.dispute_provider import SandboxDisputeProvider
 
 client = TestClient(app)
+AUTH = {"Authorization": "Bearer tok_senior_risk_001"}
 
 
 @pytest.fixture(autouse=True)
 def clean_control_tower():
-    control_tower_service.reset_store()
+    client.post("/api/control-tower/reset", headers=AUTH)
     yield
-    control_tower_service.reset_store()
+    client.post("/api/control-tower/reset", headers=AUTH)
 
 
 @pytest.mark.anyio
@@ -47,7 +48,8 @@ async def test_paypal_500_ends_in_failed():
          ):
         res = client.post(
             "/api/control-tower/CT-9021/approve",
-            json={"reviewer_name": "Senior Risk Auditor", "reviewer_notes": "Attempting initial submission"},
+            headers=AUTH,
+            json={"reviewer_notes": "Attempting initial submission"},
         )
         assert res.status_code == 200
         data = res.json()
@@ -81,7 +83,8 @@ async def test_retry_from_failed_reuses_idempotency_key():
          ):
         res_fail = client.post(
             "/api/control-tower/CT-9021/approve",
-            json={"reviewer_name": "Audit Officer A", "reviewer_notes": "First attempt"},
+            headers=AUTH,
+            json={"reviewer_notes": "First attempt"},
         )
         assert res_fail.status_code == 200
         failed_item = res_fail.json()
@@ -98,7 +101,8 @@ async def test_retry_from_failed_reuses_idempotency_key():
          ):
         res_retry = client.post(
             "/api/control-tower/CT-9021/approve",
-            json={"reviewer_name": "Audit Officer B", "reviewer_notes": "Retry attempt after PayPal recovery"},
+            headers=AUTH,
+            json={"reviewer_notes": "Retry attempt after PayPal recovery"},
         )
         assert res_retry.status_code == 200
         retried_item = res_retry.json()
@@ -116,7 +120,8 @@ def test_double_approve_returns_409_conflict():
     # First approval: succeeds (using default simulated provider)
     res_1 = client.post(
         "/api/control-tower/CT-9021/approve",
-        json={"reviewer_name": "Primary Reviewer", "reviewer_notes": "First approval"},
+        headers=AUTH,
+        json={"reviewer_notes": "First approval"},
     )
     assert res_1.status_code == 200
     assert res_1.json()["status"] == "SUBMITTED"
@@ -124,7 +129,8 @@ def test_double_approve_returns_409_conflict():
     # Second approval: must be rejected with 409 Conflict
     res_2 = client.post(
         "/api/control-tower/CT-9021/approve",
-        json={"reviewer_name": "Secondary Reviewer", "reviewer_notes": "Duplicate approval attempt"},
+        headers=AUTH,
+        json={"reviewer_notes": "Duplicate approval attempt"},
     )
     assert res_2.status_code == 409
     assert "cannot be approved" in res_2.json()["detail"]
@@ -135,7 +141,8 @@ def test_restart_keeps_state_and_audit_chain():
     # Step 1: Submit item
     res = client.post(
         "/api/control-tower/CT-9021/approve",
-        json={"reviewer_name": "Operations Lead", "reviewer_notes": "Approved prior to restart"},
+        headers=AUTH,
+        json={"reviewer_notes": "Approved prior to restart"},
     )
     assert res.status_code == 200
     assert res.json()["status"] == "SUBMITTED"

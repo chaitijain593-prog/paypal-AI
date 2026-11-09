@@ -129,26 +129,29 @@ def test_webhook_invalid_signature_rejection():
 # ── 3. Maker-Checker Constraint Enforcement ──────────────────────────────────
 
 def test_maker_checker_enforcement():
+    auth_senior = {"Authorization": "Bearer tok_senior_risk_001"}
+    auth_creator = {"Authorization": "Bearer tok_ai_creator"}
+
     # Reset queue
-    client.post("/api/control-tower/reset")
+    client.post("/api/control-tower/reset", headers=auth_senior)
 
     # Seed items have creator_name = "AI_DEFENSE_ENGINE"
-    # Reviewer attempting self-approval (same name) must fail with 400
+    # Reviewer attempting self-approval (same identity from token) must fail with 400
     res_self = client.post(
         "/api/control-tower/CT-9021/approve",
+        headers=auth_creator,
         json={
-            "reviewer_name": "AI_DEFENSE_ENGINE",
             "reviewer_notes": "Attempting automated self approval",
         },
     )
     assert res_self.status_code == 400
     assert "Maker cannot be checker" in res_self.json()["detail"]
 
-    # Reviewer with different identity succeeds
+    # Reviewer with different identity and senior role succeeds
     res_ok = client.post(
         "/api/control-tower/CT-9021/approve",
+        headers=auth_senior,
         json={
-            "reviewer_name": "Independent Risk Officer",
             "reviewer_notes": "Reviewed and approved by human operator.",
         },
     )
@@ -159,7 +162,8 @@ def test_maker_checker_enforcement():
 # ── 4. Cryptographic Hash Chain Validation & Tamper Detection ────────────────
 
 def test_audit_log_hash_chain_and_tamper_detection():
-    client.post("/api/control-tower/reset")
+    auth = {"Authorization": "Bearer tok_senior_risk_001"}
+    client.post("/api/control-tower/reset", headers=auth)
 
     # Step 1: Initial item has 1 audit entry, verify passes
     valid, reason = verify_audit_hash_chain("CT-9021")
@@ -169,7 +173,8 @@ def test_audit_log_hash_chain_and_tamper_detection():
     # Step 2: Approve adds second entry, verify passes
     client.post(
         "/api/control-tower/CT-9021/approve",
-        json={"reviewer_name": "Compliance Lead", "reviewer_notes": "Approved defense."},
+        headers=auth,
+        json={"reviewer_notes": "Approved defense."},
     )
     valid_after_approve, reason_after = verify_audit_hash_chain("CT-9021")
     assert valid_after_approve is True

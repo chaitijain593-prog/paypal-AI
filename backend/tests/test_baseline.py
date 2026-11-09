@@ -123,8 +123,9 @@ def test_firewall_synthetic_auth_token():
 # ── 3. Control Tower State Machine Characterization ──────────────────────────
 
 def test_control_tower_lifecycle_and_idempotency():
+    auth = {"Authorization": "Bearer tok_senior_risk_001"}
     # Reset store to clean state
-    res_reset = client.post("/api/control-tower/reset")
+    res_reset = client.post("/api/control-tower/reset", headers=auth)
     assert res_reset.status_code == 200
 
     res_pending = client.get("/api/control-tower/pending")
@@ -136,7 +137,8 @@ def test_control_tower_lifecycle_and_idempotency():
     # Case 1: Approve CT-9021
     res_app = client.post(
         "/api/control-tower/CT-9021/approve",
-        json={"reviewer_name": "Chief Risk Officer", "reviewer_notes": "Physical signature verified with FedEx tracking."}
+        headers=auth,
+        json={"reviewer_notes": "Physical signature verified with FedEx tracking."}
     )
     assert res_app.status_code == 200
     item = res_app.json()
@@ -151,17 +153,18 @@ def test_control_tower_lifecycle_and_idempotency():
     # Idempotency: Double approval must raise 409 Conflict
     res_reapprove = client.post(
         "/api/control-tower/CT-9021/approve",
-        json={"reviewer_name": "Chief Risk Officer"}
+        headers=auth,
+        json={"reviewer_notes": "Duplicate attempt"}
     )
     assert res_reapprove.status_code == 409
 
     # Case 2: Edit CT-9022
     res_edit = client.post(
         "/api/control-tower/CT-9022/edit",
+        headers=auth,
         json={
             "updated_defense_letter": "REVISED BY MERCHANT: Customer build verified by serial QC-9941.",
             "updated_action": "SUBMIT_EVIDENCE",
-            "reviewer_name": "Senior Support Lead",
             "reviewer_notes": "Neutralized prompt injection and clarified replacement option."
         }
     )
@@ -173,9 +176,9 @@ def test_control_tower_lifecycle_and_idempotency():
     # Double edit on submitted item raises 409
     res_reedit = client.post(
         "/api/control-tower/CT-9022/edit",
+        headers=auth,
         json={
             "updated_defense_letter": "Duplicate edit",
-            "reviewer_name": "Admin",
             "reviewer_notes": "Duplicate",
         }
     )
@@ -184,14 +187,15 @@ def test_control_tower_lifecycle_and_idempotency():
     # Case 3: Reject / Concede CT-9023
     res_rej = client.post(
         "/api/control-tower/CT-9023/reject",
-        json={"reviewer_name": "Dispute Lead", "reviewer_notes": "Concede claim per carrier 11-day delay"}
+        headers=auth,
+        json={"reviewer_notes": "Concede claim per carrier 11-day delay"}
     )
     assert res_rej.status_code == 200
     item3 = res_rej.json()
     assert item3["status"] in ["REJECTED_CONCEDED", "CONCEDED"]
 
     # Store reset works
-    res_reset2 = client.post("/api/control-tower/reset")
+    res_reset2 = client.post("/api/control-tower/reset", headers=auth)
     assert res_reset2.status_code == 200
     res_pending2 = client.get("/api/control-tower/pending")
     assert res_pending2.status_code == 200
