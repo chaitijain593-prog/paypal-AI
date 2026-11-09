@@ -36,6 +36,7 @@ Thumbs.db
 backend/data/
 
 # Cryptographic private keys
-backend/keys/*.pem
+keys/
+backend/keys/
 backend/app/keys/
 *.pem

@@ -235,7 +235,7 @@ def test_ed25519_key_caching_and_no_auto_regeneration(tmp_path, monkeypatch):
     (fake_key_dir / "merchant_ed25519.pem").write_text("CORRUPTED_GARBAGE_BYTES")
     (fake_key_dir / "merchant_ed25519_pub.pem").write_text("CORRUPTED_GARBAGE_BYTES")
 
-    monkeypatch.setattr("app.services.proof_engine.KEY_DIR", fake_key_dir)
+    monkeypatch.setattr("app.services.proof_engine.get_key_dir", lambda: fake_key_dir)
     _reset_key_cache()
 
     with pytest.raises(RuntimeError, match="Corrupted Ed25519 merchant key"):

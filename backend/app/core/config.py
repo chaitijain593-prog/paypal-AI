@@ -46,6 +46,13 @@ class Settings:
     allow_unsigned_webhooks: bool = os.getenv("ALLOW_UNSIGNED_WEBHOOKS", "false").lower() == "true"
 
 
+    # Signing Keys
+    signing_key_dir: str = os.getenv(
+        "SIGNING_KEY_DIR",
+        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "keys"),
+    )
+
+
 @lru_cache
 def get_settings() -> Settings:
     return Settings()

@@ -34,7 +34,11 @@ from app.models.schemas import (
 
 logger = logging.getLogger("proof_engine")
 
-KEY_DIR = Path(__file__).resolve().parent.parent / "keys"
+def get_key_dir() -> Path:
+    from app.core.config import get_settings
+    return Path(get_settings().signing_key_dir)
+
+KEY_DIR = get_key_dir()
 
 
 # ── 1. Domain Separation & Cryptographic Hash Primitives ─────────────────────
@@ -135,14 +139,15 @@ def _ensure_merchant_keys() -> tuple[ed25519.Ed25519PrivateKey, ed25519.Ed25519P
     if _CACHED_MERCHANT_KEYS is not None:
         return _CACHED_MERCHANT_KEYS
 
-    KEY_DIR.mkdir(parents=True, exist_ok=True)
-    priv_path = KEY_DIR / "merchant_ed25519.pem"
-    pub_path = KEY_DIR / "merchant_ed25519_pub.pem"
+    key_dir = get_key_dir()
+    key_dir.mkdir(parents=True, exist_ok=True)
+    priv_path = key_dir / "merchant_ed25519.pem"
+    pub_path = key_dir / "merchant_ed25519_pub.pem"
 
     if priv_path.exists() or pub_path.exists():
         if not (priv_path.exists() and pub_path.exists()):
             raise RuntimeError(
-                f"FATAL: Incomplete Ed25519 keypair in {KEY_DIR}. One key file is missing. "
+                f"FATAL: Incomplete Ed25519 keypair in {key_dir}. One key file is missing. "
                 "Refusing to auto-regenerate and orphan previously signed Merkle proofs."
             )
         try:
@@ -155,9 +160,9 @@ def _ensure_merchant_keys() -> tuple[ed25519.Ed25519PrivateKey, ed25519.Ed25519P
                 return _CACHED_MERCHANT_KEYS
             raise ValueError("Loaded keys are not a valid Ed25519 keypair.")
         except Exception as e:
-            logger.error("Failed to load existing merchant key from %s: %s", KEY_DIR, e)
+            logger.error("Failed to load existing merchant key from %s: %s", key_dir, e)
             raise RuntimeError(
-                f"FATAL: Corrupted Ed25519 merchant key in {KEY_DIR}: {e}. "
+                f"FATAL: Corrupted Ed25519 merchant key in {key_dir}: {e}. "
                 "Auto-regeneration is strictly disabled to prevent silent key rollover."
             ) from e
 
