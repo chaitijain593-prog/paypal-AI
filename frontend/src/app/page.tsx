@@ -213,32 +213,25 @@ export default function StartingPage() {
 
           {/* Center Nav Links */}
 
-          <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-300">
-
+          <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-slate-300">
+            <Link href="/approval-queue" className="hover:text-[#3B9EFF] transition-colors flex items-center gap-1.5">
+              <ShieldCheck className="w-4 h-4 text-cyan-400" /> Control Tower
+            </Link>
+            <Link href="/agent-commerce" className="hover:text-[#3B9EFF] transition-colors flex items-center gap-1.5">
+              <Bot className="w-4 h-4 text-emerald-400" /> Agent Commerce
+            </Link>
             <Link href="/arena" className="hover:text-[#3B9EFF] transition-colors flex items-center gap-1.5">
-
               <Swords className="w-4 h-4 text-rose-400" /> Dispute Arena
-
             </Link>
-
             <Link href="/transactions" className="hover:text-[#3B9EFF] transition-colors">
-
               Transactions
-
             </Link>
-
             <Link href="/proofs" className="hover:text-[#3B9EFF] transition-colors">
-
               Proof Vault
-
             </Link>
-
             <Link href="/cashflow" className="hover:text-[#3B9EFF] transition-colors">
-
               Runway Guardian
-
             </Link>
-
           </nav>
 
           {/* Right CTA Button */}

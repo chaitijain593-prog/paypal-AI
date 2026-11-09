@@ -493,6 +493,10 @@ def save_transactions_to_db(txns: list[Transaction]) -> None:
                     amount=excluded.amount,
                     currency=excluded.currency,
                     status=excluded.status,
+                    type=excluded.type,
+                    description=excluded.description,
+                    has_dispute=excluded.has_dispute,
+                    dispute_id=excluded.dispute_id,
                     payload_json=excluded.payload_json
                 """,
                 (
@@ -501,12 +505,12 @@ def save_transactions_to_db(txns: list[Transaction]) -> None:
                     t.amount,
                     t.currency,
                     t.status.value if hasattr(t.status, "value") else str(t.status),
-                    "PAYMENT",
+                    t.type,
                     t.description,
                     json.dumps(t.buyer.model_dump() if hasattr(t.buyer, "model_dump") else t.buyer.dict()),
                     t.payment_method,
-                    0,
-                    None,
+                    1 if t.has_dispute else 0,
+                    t.dispute_id,
                     t.data_source,
                     t.created_at.isoformat(),
                     json.dumps(t.model_dump(mode="json") if hasattr(t, "model_dump") else t.dict()),
@@ -548,6 +552,9 @@ def load_transactions_from_db() -> list[Transaction]:
                         payment_method=r["payment_method"] or "PayPal Balance",
                         risk_score=12.0,
                         data_source=r["data_source"],
+                        type=r["type"] if "type" in r.keys() and r["type"] else "Product Sale",
+                        has_dispute=bool(r["has_dispute"]) if "has_dispute" in r.keys() else False,
+                        dispute_id=r["dispute_id"] if "dispute_id" in r.keys() else None,
                     )
                 )
         return txns

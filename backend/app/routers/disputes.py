@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, HTTPException
 
-from app.models.schemas import DisputeResponse
+from app.models.schemas import Dispute, DisputeResponse, DisputeResponseResult
 from app.services.mock_data import get_dispute_by_id, get_disputes, respond_to_dispute
 
 router = APIRouter(prefix="/api/disputes", tags=["Disputes"])
@@ -15,7 +15,7 @@ def list_disputes():
     return {"count": len(disputes), "data_source": "SIMULATED", "disputes": disputes}
 
 
-@router.get("/{dispute_id}")
+@router.get("/{dispute_id}", response_model=Dispute)
 def get_dispute(dispute_id: str):
     """Return a single dispute by ID."""
     dispute = get_dispute_by_id(dispute_id)
@@ -24,7 +24,7 @@ def get_dispute(dispute_id: str):
     return dispute
 
 
-@router.post("/{dispute_id}/respond")
+@router.post("/{dispute_id}/respond", response_model=DisputeResponseResult)
 def respond_dispute(dispute_id: str, body: DisputeResponse):
     """Submit a response to a dispute with AI analysis."""
     result = respond_to_dispute(dispute_id, body)

@@ -338,7 +338,8 @@ def get_merkle_root() -> str:
 
 def verify_proof_record(proof_id: str) -> ProofVerifyResult | None:
     """Verifies proof record integrity and validates the Ed25519 signature."""
-    proof = next((p for p in PROOF_STORE if p.id == proof_id), None)
+    clean_id = proof_id.strip().upper()
+    proof = next((p for p in PROOF_STORE if p.id.strip().upper() == clean_id), None)
     if not proof:
         return None
 

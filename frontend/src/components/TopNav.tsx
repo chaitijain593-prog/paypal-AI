@@ -14,6 +14,8 @@ interface TopNavProps {
 
 const pageTitles: Record<string, { title: string; subtitle: string }> = {
   '/dashboard': { title: 'Merchant Command Center', subtitle: 'Dispute defense, agentic commerce & risk monitoring' },
+  '/approval-queue': { title: 'Human Control Tower', subtitle: 'Maker-checker dispute review & cryptographic audit chain' },
+  '/agent-commerce': { title: 'Agent-to-Agent Commerce', subtitle: 'Autonomous Buyer Agent vs Merchant Agent PayPal loop' },
   '/arena': { title: 'Dispute Arena', subtitle: 'Adversarial AI red-team simulations & prompt injection firewall' },
   '/transactions': { title: 'Transactions Ledger', subtitle: 'PayPal Sandbox orders, dispute drill-downs & logs' },
   '/proofs': { title: 'Proof Vault', subtitle: 'SHA-256 Merkle proof chain & Visa CE 3.0 evidence ledger' },

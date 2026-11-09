@@ -341,8 +341,8 @@ export default function SilkBackground({ opacity = 0.45 }: SilkBackgroundProps) 
 
     function onPointerMove(e: PointerEvent) {
       const rect = canvas!.getBoundingClientRect();
-      mouseX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-      mouseY = -(((e.clientY - rect.top) / rect.height) * 2 - 1);
+      mouseX = (e.clientX - rect.left) * dpr;
+      mouseY = (rect.height - (e.clientY - rect.top)) * dpr;
       cursorPresence = 1;
     }
     function onPointerLeave() {

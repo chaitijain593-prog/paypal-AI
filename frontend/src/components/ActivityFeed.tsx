@@ -71,7 +71,35 @@ const iconMap = {
   resolution: { icon: CheckCircle2, color: 'text-emerald-400', bg: 'bg-emerald-400/10' },
 };
 
-export default function ActivityFeed() {
+interface ActivityFeedProps {
+  alerts?: Array<{
+    type: string;
+    severity: string;
+    message: string;
+    timestamp: string;
+  }>;
+}
+
+export default function ActivityFeed({ alerts }: ActivityFeedProps) {
+  const items: ActivityItem[] = alerts && alerts.length > 0
+    ? alerts.map((a, i) => {
+        let actType: ActivityItem['type'] = 'alert';
+        if (a.type === 'DISPUTE') actType = 'dispute';
+        else if (a.type === 'PROOF') actType = 'evidence';
+        else if (a.type === 'PAYMENT') actType = 'payment';
+        else if (a.type === 'ARENA') actType = 'alert';
+        else if (a.type === 'CASHFLOW') actType = 'resolution';
+
+        return {
+          id: `alert-${i}`,
+          type: actType,
+          title: `${a.type} Notice (${a.severity})`,
+          description: a.message,
+          time: 'Live',
+        };
+      })
+    : activityData;
+
   return (
     <div className="p-5 rounded-xl bg-[#121826] border border-white/[0.06]">
       <div className="flex items-center justify-between mb-4">
@@ -81,7 +109,7 @@ export default function ActivityFeed() {
         </button>
       </div>
       <div className="space-y-1">
-        {activityData.map((item) => {
+        {items.map((item) => {
           const { icon: Icon, color, bg } = iconMap[item.type];
           return (
             <div
