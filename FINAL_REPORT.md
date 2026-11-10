@@ -1,197 +1,175 @@
-# 🛡️ PaySentinel AI — Hardening Round 2 Final Report
+# PaySentinel AI — Hardening Round 3 Verification & Final Delivery Report
 
-**Date:** November 9, 2026  
-**Role:** Principal Payments Architect + SDE  
-**Target Branch:** `hardening/round2`  
-**Base:** Phase 0–4 Architectural Review Gap Remediation  
-
----
-
-## Executive Summary
-
-All 10 steps of the architectural review hardening roadmap have been executed, empirically validated, and committed to branch `hardening/round2`. The system is fully compliant with PayPal REST v2 API contracts, cryptographic standards (RFC 6962 domain-separated Merkle trees with Ed25519 signing), zero-knowledge/privacy commitments, maker-checker authorization controls, and deterministic prompt-injection firewalls.
+**Date:** 2026-11-11  
+**Branch:** `hardening/round3`  
+**Base Commit:** `54654fc`  
+**Final Verification Commit:** `95c3fe0`  
+**Orchestration Environment:** Python 3.12, Node.js v20+, FastAPI, Next.js 16 (App Router)
 
 ---
 
-## 📊 Before & After Verification Metrics
+## 1. Executive Summary
 
-| Dimension | Baseline State (Before Round 2) | Hardened State (After Round 2) | Delta / Improvement |
-| :--- | :--- | :--- | :--- |
-| **Backend Test Suite** | 42 passed | **66 passed** in 5.62s | **+24 comprehensive regression tests** |
-| **Test Failures / Skips** | 0 failures | **0 failures, 0 errors** | 100% test pass rate across 7 suites |
-| **TypeScript Typecheck** | Ran with legacy discrepancies | **0 errors** (`npx tsc --noEmit`) | Strict type safety enforced |
-| **ESLint Validation** | 33 errors, 66 warnings | **0 errors** (`npm run lint`) | Clean lint output |
-| **Production Build** | Static generation quirks | **0 errors** (`next build --webpack`) | All 10 routes statically prerendered |
-| **Banned Marketing Claims** | 62 occurrences across codebase | **0 occurrences** | Full compliance & honest framing |
-| **Firewall Adversarial Block Rate** | Hardcoded simulation | **92.3%** on 52-case eval corpus | Zero-width stripped, confusables folded |
-| **Firewall False-Positive Rate** | ~18% (blocked benign text) | **0.0%** across 44 benign cases | Hindi, Malayalam, & emojis fully pass |
-| **Data Source Transparency** | Mixed mock claims | **100% labeled** (`LIVE` vs `SIMULATED`) | Data source badges on every UI panel |
+This report documents the rigorous hardening and cryptographic verification of **PaySentinel AI** across Phases P0, P1, and P2. In adherence to strict proof-based criteria:
+- Every defect was first reproduced with an automated failing test before modification.
+- Every fix was verified with passing unit/integration suites and end-of-phase boot smoke tests.
+- All evidence claims, Merkle tree audits, and Ed25519 signatures are computed strictly from real stored raw bytes or explicitly labeled as `SIMULATED`.
+- Three deliberate code mutations were executed and verified to confirm that test assertions fail when underlying security guards are breached.
+- All sensitive keys, tokens, and database files remain untracked with zero leaked secrets.
 
 ---
 
-## 🛠️ Step-by-Step Implementation Matrix
+## 2. Task-by-Task Implementation & Verification Matrix
 
-### Step 1 — Safety & Configuration Hardening
-- **Commit:** `ed75942`
-- **Implemented:**
-  - Added `PAYPAL_MODE` (`sandbox` vs `live`) in `.env.example` and `config.py`.
-  - Enforced startup failure if `PAYPAL_WEBHOOK_ID` is empty while running in sandbox mode; removed fragile `WEBHOOK_VERIFY_ID` fallback.
-  - Ed25519 merchant key loading raises an explicit `RuntimeError` on corruption instead of auto-regenerating keys (preventing silent key rotation and root invalidation).
-  - Implemented in-memory caching for merchant private/public keys (`_CACHED_MERCHANT_KEYS`), eliminating repeated disk I/O on signing and verification calls.
-- **Verification:** `backend/tests/test_proofs.py::test_startup_fails_in_sandbox_without_webhook_id` and `test_ed25519_key_caching_and_no_auto_regeneration`.
-
----
-
-### Step 2 — Correct PayPal Evidence API Call
-- **Commit:** `3378b3c`
-- **Implemented:**
-  - Rewrote `provide_evidence` in `paypal_client.py` and `sandbox_dispute_provider.py` to match PayPal's exact documented shape: `multipart/form-data` with an `input` JSON part (`{"evidences":[{"evidence_type":..., "evidence_info":{"tracking_info":[{"carrier_name":..., "tracking_number":...}]},"notes":...}]}`).
-  - Validated evidence types against PayPal schema: `PROOF_OF_FULFILLMENT`, `PROOF_OF_REFUND`, `OTHER`.
-  - Enforced dispute state check: dispute must be in `WAITING_FOR_SELLER_RESPONSE` before dispatching evidence.
-  - Captured `paypal-debug-id` from response headers and full response payload in audit log rows.
-  - Added schema validation to `accept_claim` (`note`, `accept_claim_reason`).
-  - Extended `DisputeProvider` protocol with `create_dispute`, `capture_payment`, and `add_tracking`.
-- **Verification:** `backend/tests/test_paypal_loop.py` (6 tests asserting multipart request structure, HTTP mock transport, and status validation).
-
----
-
-### Step 3 — State Machine & SQLite Persistence
-- **Commit:** `cb895bf`
-- **Implemented:**
-  - Persisted `control_tower_items`, `disputes`, and `transactions` tables to SQLite (`backend/data/paysentinel.db`).
-  - Removed `reset_store()` from startup hooks; ensured startup never deletes `audit_log`.
-  - Added transactional intermediate states:
-    - Evidence submission: `SUBMITTING -> SUBMITTED | FAILED`
-    - Claim concession: `CONCEDING -> CONCEDED | FAILED`
-  - Set `SUBMITTING` within an atomic SQLite transaction prior to external PayPal API call; moved to `SUBMITTED` only on real HTTP 2xx; moved to `FAILED` with error log on 5xx.
-  - Preserved idempotency key across retries from `FAILED` state.
-  - Rejected double approval attempts with HTTP 409 Conflict.
-- **Verification:** `backend/tests/test_control_tower_state.py` (4 tests testing PayPal 500 failure transitions, retry idempotency, 409 double-approval, and service restart state persistence).
+| Task ID | Commit | Description | Red Failure Log | Green Verification Log | Gate Status |
+|---|---|---|---|---|---|
+| **Phase 0** | `9bec6f0` | Reproduction of baseline compilation and test errors | `verification/phase0_compileall.log`, `verification/phase0_test_verify_endpoint_fail.log` | `verification/BASELINE.md` | PASS |
+| **P0-1** | `9bec6f0` | Removed dead OpenAI drafter; added `pytest.ini`, `scripts/verify_all.sh` / `.ps1`, GitHub Actions workflow | `verification/phase0_compileall.log` | `verification/P0-1_test_app_imports_pass.log` | PASS |
+| **P0-2** | `88935d5` | Rewrote `verify_proof_record` around `RAW_EVIDENCE_STORE`, 3-arg Ed25519 signature, Merkle audit path | `verification/P0-2_red_test_verify_endpoint.log` | `verification/P0-2_green_test_verify_endpoint.log` | PASS |
+| **P0-3** | `da4f899` | Secrets hygiene (`.gitignore`), `.env.example`, `SIGNING_KEY_DIR`, `scripts/check_secrets.sh` | N/A (Gate Check) | `verification/P0-3_check_secrets.log` | PASS |
+| **P0-4** | `acd097a` | Forgery-proof auth (`API_TOKENS`, `hmac.compare_digest`), Pydantic Orders v2 models, server-side route proxy | `verification/P0-4_red_tok_admin_mallory.log` | `verification/P0-4_green_test_audit_hardening.log` | PASS |
+| **P0-5** | `3aabf7e` | Eliminated fabricated carrier leaves; Merkle tree from real evidence bytes; untrusted input firewall | `verification/P0-5_red.log` | `verification/P0-5_pytest.log` | PASS |
+| **P0-6** | `5a9c25b` | Enforced `draft_status` guards (`DRAFT_FAILED`, `LLM_UNAVAILABLE`) blocking dispatch; human edit transition | `verification/P0-6_red.log` | `verification/P0-6_pytest.log` | PASS |
+| **P0-7** | `af46fbe` | PayPal Sandbox integration test loop (`scripts/sandbox_smoke.py`), `@pytest.mark.live` skips | `verification/P0-7_red.log` | `verification/P0-7_pytest.log` | PASS |
+| **P0 Smoke**| `391658a` | Boot smoke test: Uvicorn (8011) + Next.js (3011), auth probes, tamper probe | N/A | `verification/P0_smoke.log` (22/22 pass) | PASS |
+| **P1-1** | `2a805a1` | Gemini structured outputs (`GEMINI_DEFENSE_SCHEMA`), fail-closed proof validator | `verification/P1-1_red.log` | `verification/P1-1_pytest.log` | PASS |
+| **P1-2** | `a271605` | Decoupled webhook 200 response with background processing queue and in-flight deduplication | `verification/P1-2_red.log` | `verification/P1-2_pytest.log` | PASS |
+| **P1-3** | `d9763f5` | Fail-closed webhook verification, HTTPS cert domain check, simulated headers | `verification/P1-3_red.log` | `verification/P1-3_pytest.log` | PASS |
+| **P1-4** | `22106cf` | Ambiguous timeout reconciliation against `GET /v1/customer/disputes/{id}` (`AMBIGUOUS_TIMEOUT`) | `verification/P1-4_red.log` | `verification/P1-4_pytest.log` | PASS |
+| **P1-5** | `e729d72` | Shared singleton `httpx.AsyncClient` with `asyncio.Lock` token refresh and exponential backoff | `verification/P1-5_red.log` | `verification/P1-5_pytest.log` | PASS |
+| **P1-6** | `7134e7c` | Python `Decimal` money handling across models, SQLite adapter, Pydantic JSON float serializer | `verification/P1-6_red.log` | `verification/P1-6_pytest.log` | PASS |
+| **P1-7** | `d4045ce` | Honest simulated state labeling (`SIMULATED_SUBMITTED`, `SIMULATED_CONCEDED`, `data_source="SIMULATED"`) | `verification/P1-7_red.log` | `verification/P1-7_pytest.log` | PASS |
+| **P1 Smoke**| `e708b69` | Boot smoke test covering P0 + P1 capabilities | N/A | `verification/P1_smoke.log` (22/22 pass) | PASS |
+| **P2-1** | `8e38d4c` | Compare-and-Swap (CAS) state machine concurrency in SQLite (`BEGIN IMMEDIATE` + rowcount 409) | `verification/P2-1_red.log` | `verification/P2-1_pytest.log` | PASS |
+| **P2-2** | `9b37cfd` | Expose cryptographic audit chain verification (`/verify-audit-chain`) wired to Approval Queue UI | `verification/P2-2_red.log` | `verification/P2-2_pytest.log` | PASS |
+| **P2-3** | `706a5a9` | Dual-corpus evaluation (`app/data/eval_corpus.py` tuned + `tests/data/holdout_corpus.py` held-out) | `verification/P2-3_red.log` | `verification/P2-3_pytest.log` | PASS |
+| **P2-4** | `f7e5d11` | Removed 2,864 lines of dead 3D components and unused WebGL dependencies; added clean static hero | N/A (Build check) | `verification/P2-4_build.log` | PASS |
+| **P2-5** | `b5a59db` | Frontend resilience: explicit loading/error states, `DataSourceBadge`, PayPal `debug_id` display | N/A (Build check) | `verification/P2-5_build.log` | PASS |
+| **P2-6** | `32a8079` | Truthful documentation pass: aligned `README.md` real-vs-simulated table, documented auth & env vars | N/A (Docs pass) | `verification/P2-6_build.log` | PASS |
+| **P2 Smoke**| `277042c` | Boot smoke test covering all 8 frontend routes, dual-corpus eval probe, and audit verification | N/A | `verification/P2_smoke.log` (27/27 pass) | PASS |
+| **Mutations**| `95c3fe0` | 3 targeted mutation tests executed, logged to `verification/mutation_sanity.log`, and restored | `verification/mutation_sanity.log` | `verification/mutation_sanity.log` | PASS |
 
 ---
 
-### Step 4 — Authentication, Authorization & Hash-Chained Audit Trail
-- **Commit:** `43be60f`
-- **Implemented:**
-  - Enforced `get_current_reviewer` Bearer token authentication dependency on all mutating endpoints (`/approve`, `/concede`, `/reset`, `/tamper`).
-  - Extracted reviewer identity (`reviewer_id`) and role (`role`) directly from validated token claims, never trusting request body fields.
-  - Enforced maker-checker separation: reviewer cannot approve an item they created (`item.creator_id != reviewer.reviewer_id`).
-  - Enforced role requirement (`manager` or `admin`) for actions on disputes exceeding `$500.00` safety cap.
-  - Gated `POST /api/control-tower/reset` strictly to `APP_ENV=development` and authenticated operators; explicitly blocked from modifying or truncating `audit_log`.
-  - Hardened audit log hash calculation: entry hash binds `item_id`, `timestamp`, `previous_state`, `new_state`, and `reviewer_notes`.
-  - Added committed head hash tracking per item (`audit_heads` table); executed commits under `BEGIN IMMEDIATE` with `UNIQUE(item_id, prev_hash)` preventing forks.
-- **Verification:** `backend/tests/test_audit_hardening.py` (8 tests validating token auth, role gates, maker-checker, dev-only reset, fork prevention, truncation detection, and field tampering).
+## 3. End-to-End Verification Pipeline Results
 
----
+The automated master verification script (`scripts/verify_all.ps1`) was executed from a clean state. Raw output captured in `verification/final_verify_all.log`:
 
-### Step 5 — Webhooks Pipeline: Process-Then-Commit & Dispute Ingestion
-- **Commit:** `87bd229`
-- **Implemented:**
-  - Transitioned webhook event processing to a process-then-commit state model (`PROCESSING -> PROCESSED | FAILED`) recorded in SQLite.
-  - On `CUSTOMER.DISPUTE.CREATED`, automatically fetches dispute details via `DisputeProvider`, creates a control-tower item, and triggers the AI defense drafter.
-  - Rejected unsigned PayPal webhooks by default; required explicit `allow_unsigned_webhooks=True` flag for local development testing.
-  - Re-routed `GET /api/webhooks/events` to query persistent SQLite storage (`load_webhook_events_from_db`).
-- **Verification:** `backend/tests/test_webhooks_pipeline.py` (8 tests testing signature verification, unsigned rejection, replay deduplication, handler failure recovery, dispute created ingestion, and DB event queries).
+```text
+==> Running check_secrets...
+==> Checking for tracked sensitive files...
+==> Scanning tracked files for secret patterns...
+==> Secrets check passed cleanly: 0 tracked secrets found.
+==> [1/6] Python compileall...
+==> [2/6] Pytest full suite...
+107 passed, 1 warning in 10.18s
+==> [3/6] Frontend TypeScript check...
+==> [4/6] Frontend ESLint...
+✖ 78 problems (0 errors, 78 warnings)
+==> [5/6] Frontend production build...
+✓ Compiled successfully in 2.5s
+✓ Generating static pages using 13 workers (11/11) in 1593ms
+==> [6/6] Boot smoke test...
+==> 1. Starting Backend uvicorn on port 8011...
+  [PASS] Backend /api/health returns 200
+  [PASS] Backend /docs returns 200
+==> 2. Running Auth Probes...
+  [PASS] No token returns 401
+  [PASS] Forged token returns 401
+  [PASS] OPERATOR approving high value dispute returns 403
+==> 3. Running Webhook Probes...
+  [PASS] Unsigned webhook rejected 400
+  [PASS] Invalid signature rejected 400
+==> 4. Running Proofs Engine & Tamper Probes...
+  [PASS] GET /api/proofs returns 200
+  [PASS] GET /api/proofs/PRF-001/verify returns 200
+  [PASS] Initial proof status is VERIFIED
+  [PASS] POST /api/proofs/tamper returns 200
+  [PASS] Tampered proof status returns TAMPERED
+  [PASS] Tampered proof match is False
+==> 4b. Running Arena Dual-Corpus Eval Probe...
+  [PASS] GET /api/arena/eval returns 200
+  [PASS] Arena eval reports tuned corpus
+  [PASS] Arena eval reports heldout corpus
+  [PASS] Arena heldout has >=25 attacks
+==> 4c. Running Draft-Failed Guard Probe...
+  [PASS] Approving DRAFT_FAILED item rejected (409/422)
+==> 5. Starting Frontend next start on port 3011...
+  [PASS] Frontend server booted and listening
+  [PASS] Frontend route / returns 200
+  [PASS] Frontend route /dashboard returns 200
+  [PASS] Frontend route /approval-queue returns 200
+  [PASS] Frontend route /proofs returns 200
+  [PASS] Frontend route /arena returns 200
+  [PASS] Frontend route /cashflow returns 200
+  [PASS] Frontend route /transactions returns 200
+  [PASS] Frontend route /agent-commerce returns 200
+==> 6. Cleaning up server processes...
+  Backend terminated.
+  Frontend terminated.
 
----
-
-### Step 6 — Cryptographic Proofs: Recomputation & RFC 6962 Compliance
-- **Commit:** `902431e`
-- **Implemented:**
-  - Persisted raw evidence payloads (`RAW_EVIDENCE_STORE`); `verify_proof_record` recomputes leaf hashes directly from stored raw bytes and compares to committed root.
-  - Deleted legacy hardcoded `PRF-005` fixture.
-  - Built live tampering demonstration (`POST /api/proofs/{id}/tamper`) that flips a stored raw byte and triggers cryptographic verification failure.
-  - Replaced deterministic salt with cryptographically secure random per-proof salts (`secrets.token_hex(16)` stored in `STORED_SALTS`).
-  - Bound UTC signing timestamp (`signed_at`) directly into Ed25519 root signatures (`f"{root_hash}|{signed_at}"`).
-  - Replaced hardcoded custody timestamps with real system timestamps.
-  - Implemented RFC 6962 power-of-two split for odd-count leaf nodes; verified `[a, b, c] != [a, b, c, c]`.
-- **Verification:** `backend/tests/test_proofs.py` (10 tests asserting RFC 6962 tree math, Ed25519 signature binding, raw byte recomputation, tamper detection, and per-proof salt randomness).
-
----
-
-### Step 7 — Defense Drafter Hard Grounding & Resilience
-- **Commit:** `e29680c`
-- **Implemented:**
-  - Wired `draft_dispute_defense` into the incoming dispute webhook lifecycle.
-  - Implemented hard ground-truth validation: every factual statement in `rebuttal_letter` and `claims` must cite a valid `claim_id` matching an existing leaf whose Merkle proof cryptographically verifies.
-  - Removed hardcoded `0.92` confidence template fallback; on LLM failure or timeout, returns `LLM_UNAVAILABLE` and triggers human escalation.
-  - Configured asynchronous `httpx.AsyncClient` sending Google Gemini API key via standard `x-goog-api-key` header.
-  - Implemented feedback retry loop: structured validation errors are fed back into prompt instructions for autonomous correction.
-- **Verification:** `backend/tests/test_drafter_hardening.py` (7 tests testing rebuttal ground-truth validation, ungrounded claim rejection, proof corruption detection, LLM failure escalation, API header authentication, and retry correction).
-
----
-
-### Step 8 — Firewall Red-Teaming, Eval Corpus & Zero-Width Sanitization
-- **Commit:** `8d3c67c`
-- **Implemented:**
-  - Created standalone evaluation corpus (`backend/app/data/eval_corpus.py`) with 52 adversarial cases (direct injection, multilingual FR/DE/ES/RU/ZH, homoglyphs, Cyrillic/Greek obfuscation, Base64, delimiter hijacks) and 44 benign cases (buyer inquiries, emojis, Hindi, Malayalam, Spanish, French).
-  - Hardened firewall: zero-width unicode characters (`\u200B`–`\u200D`, `\uFEFF`) are stripped before analysis instead of triggering false-positive blocks (preserving Indic ligatures and emoji sequences).
-  - Implemented visual confusable/homoglyph normalization (`fold_confusables`) mapping lookalike Cyrillic/Greek characters to ASCII prior to regex scanning.
-  - Added `POST /api/arena/eval` endpoint returning live corpus evaluation metrics (block rate %, false-positive rate %, latency).
-  - Updated `evaluate_live_attack` to dynamically inspect real proof status in `RAW_EVIDENCE_STORE` instead of hardcoding `verified: True`.
-  - Added Live Eval trigger and results pill in Dispute Arena UI.
-- **Verification:** `backend/tests/test_arena_attacks.py` (8 tests asserting 0% false-positive rate on benign Indic/emoji text, zero-width stripping, confusable folding, live eval endpoint, and dynamic attack evidence).
-
----
-
-### Step 9 — Marketing Claims Sanitization & Data Source Transparency
-- **Commit:** `6e0a1bf`
-- **Implemented:**
-  - Systematically purged 62 occurrences of prohibited marketing terms across backend, frontend pages, 3D canvas, and UI components:
-    - `"Visa CE 3.0"` -> replaced with `"PayPal Seller Protection"` / `"Compelling Evidence"` (specifically ensuring INR dispute defenses do not cite card-only 10.4 chargeback rules).
-    - `"escrow"` -> replaced with `"settlement hold"` / `"settled reserve"`.
-    - `"irrefutable"` -> replaced with `"cryptographically verified"` / `"tamper-evident"`.
-    - `"ZK"` / `"Zero-Knowledge"` -> replaced with `"Salted Commitment"` / `"Cryptographic Proof"`.
-    - `"Production-grade"` -> replaced with `"Hardened"`.
-  - Added explicit data source badges across all dashboard and cockpit panels:
-    - Dashboard: `DATA: SIMULATED` / `Cryptographically Verified`
-    - Transaction Table: `DATA: PERSISTED_SQLITE` / `DATA: SIMULATED`
-    - Proof Vault: `DATA: LIVE CRYPTO` / `Seller Protection Compliant`
-    - Control Tower / Approval Queue: `DATA: SIMULATED`
-    - Dispute Arena: `DATA: LIVE` / `LIVE EVAL`
-    - Cash-Flow Guardian: `DATA: SIMULATED`
-    - Agent-to-Agent Commerce: `DATA: SIMULATED`
-    - Activity Feed: `SIMULATED`
-  - Updated `README.md` architecture diagram and Real-vs-Simulated Matrix to accurately reflect persistent SQLite storage, conditional live sandbox calls, and cryptographic proofs.
-- **Verification:** Full codebase pattern scan confirms 0 prohibited terms remaining. Pytest 66/66 passed; Next.js typecheck clean.
-
----
-
-### Step 10 — Phase 5 Verification & Final Cleanup
-- **Implemented:**
-  - Audited all 3D canvas and device showcase components (`Hero3DCanvas.tsx`, `DeviceShowcase3D.tsx`, `CSSPhoneHero.tsx`, `ThreeSentinelScene.tsx`).
-  - Configured ESLint rule overrides in `frontend/eslint.config.mjs` for Next.js 15+ strict React compiler purity rules.
-  - Verified static generation across all 10 frontend routes (`/`, `/agent-commerce`, `/approval-queue`, `/arena`, `/cashflow`, `/dashboard`, `/proofs`, `/showcase`, `/transactions`, `/_not-found`).
-  - Conducted full cross-layer test validation:
-    - Backend Pytest: **66 passed**
-    - TypeScript: **0 errors**
-    - ESLint: **0 errors**
-    - Next.js Build: **0 errors**
-
----
-
-## 📌 Items Intentionally Preserved / Out of Scope
-
-1. **Local Test Transport:** Unit and integration tests continue to utilize `httpx.MockTransport` and sandbox stubs to avoid incurring live PayPal sandbox API rate limits or requiring active sandbox credentials during CI runs.
-2. **Deterministic Fallbacks:** The AI drafter and Arena simulator gracefully fall back to structured, deterministic heuristics when `GEMINI_API_KEY` is omitted, returning explicit `data_source: "SIMULATED"` payloads.
-3. **Branch Merging:** As explicitly requested by the user, all work remains isolated on branch `hardening/round2`. The user will merge into `main`.
-
----
-
-## 🚀 How to Merge to Main
-
-To inspect and merge these changes into `main`:
-
-```powershell
-# 1. Ensure you are on hardening/round2 and clean
-git status
-
-# 2. Switch to main
-git checkout main
-
-# 3. Merge hardening/round2 with a fast-forward or merge commit
-git merge hardening/round2
-
-# 4. Push to remote main
-git push origin main
+Smoke Test Summary: 27 passed, 0 failed.
+==> ALL CHECKS PASSED!
 ```
+
+---
+
+## 4. Mutation Sanity Check Proofs
+
+To prove that test coverage is active and sensitive to regressions, three targeted mutations were injected into production source code, verified to fail, and restored:
+
+1. **Mutation A: Broken Ed25519 Signature Argument Count**
+   - **File:** `backend/app/services/proof_engine.py`
+   - **Mutation:** Changed `verify_merkle_root_signature(root, signed_at, signature)` to pass 2 arguments instead of 3.
+   - **Result:** `TypeError: verify_merkle_root_signature() missing 1 required positional argument: 'signature_hex'` across 4 tests in `test_proofs.py`.
+   - **Restored:** Clean pass (11 passed).
+
+2. **Mutation B: Re-enabled Forged `tok_admin_` Auth Pattern**
+   - **File:** `backend/app/core/auth.py`
+   - **Mutation:** Inserted `if token.startswith("tok_admin_"): return ReviewerContext(...)`.
+   - **Result:** `AssertionError: assert 200 == 401` in `test_mutating_routes_require_authentication` (`test_audit_hardening.py:83`).
+   - **Restored:** Clean pass (8 passed).
+
+3. **Mutation C: Disabled Defense Letter Validity Guard**
+   - **File:** `backend/app/services/control_tower_service.py`
+   - **Mutation:** Commented out `if not letter_clean or letter_clean == "LLM_UNAVAILABLE" ... raise ValueError(...)`.
+   - **Result:** `AssertionError: assert 200 in (409, 422)` in `test_approve_draft_failed_rejected`, `test_approve_empty_letter_rejected`, and `test_approve_llm_unavailable_rejected`.
+   - **Restored:** Clean pass (8 passed).
+
+Full failure traces are preserved in `verification/mutation_sanity.log`.
+
+---
+
+## 5. PayPal Sandbox Live Integration
+
+Live sandbox execution is provided via `scripts/sandbox_smoke.py` and documented in `SANDBOX_RUNBOOK.md`.
+
+- **Unit/CI Isolation:** Standard test suites use `httpx.MockTransport` and do not make live external HTTP calls.
+- **Live Sandbox Marker:** Integration tests communicating with `api-m.sandbox.paypal.com` are marked with `@pytest.mark.live` and automatically skipped when `PAYPAL_CLIENT_ID` or `PAYPAL_CLIENT_SECRET` are unset.
+- **Workflow Verified:**
+  1. OAuth2 Bearer token generation with shared connection pool.
+  2. Order creation via Orders v2 API with Pydantic validated amount and currency.
+  3. Authorize/Capture execution against generated Order IDs.
+  4. Dispute retrieval and evidence submission simulation.
+
+---
+
+## 6. Known Limitations & Needs Manual Items
+
+1. **Live Sandbox Dispute Seeding (`NEEDS_MANUAL`):**
+   - PayPal Sandbox does not provide a direct API to synthetically create an arbitrary customer dispute from scratch on demand (disputes must be raised via the PayPal Sandbox Buyer Portal UI or webhooks).
+   - Once a dispute ID is obtained in sandbox, `scripts/sandbox_smoke.py` exercises full evidence submission and status retrieval.
+
+2. **Carrier Tracking Number Live Verification (`NEEDS_MANUAL`):**
+   - Real-time carrier API integration (FedEx, UPS, USPS) requires merchant-specific API keys and production accounts.
+   - For hackathon demonstration, carrier tracking leaves require either real tracking bytes provided via API request or fall back to honest `NO_EVIDENCE` status.
+
+3. **Held-Out Adversarial Attacks:**
+   - In `tests/data/holdout_corpus.py`, 30 novel adversarial jailbreak attempts (including unicode obfuscation, base64 payload injection, and Hindi/Malayalam text) are evaluated.
+   - The tuned firewall detects and blocks 27 of 30 held-out attacks (90.0% block rate) without false-positively flagging legitimate multi-lingual buyer disputes. The 3 edge cases are documented in the Arena evaluation payload.
+
+---
+
+## 7. Conclusion
+
+PaySentinel AI has completed all requirements for Phases P0, P1, and P2. All blocker defects, security bypasses, and unverified data claims have been corrected and validated with verifiable log output.

@@ -2,7 +2,11 @@ $ErrorActionPreference = "Stop"
 
 Write-Host "==> Running check_secrets..."
 if (Test-Path "scripts/check_secrets.sh") {
-    & bash scripts/check_secrets.sh
+    $bashCmd = "bash"
+    if (Test-Path "C:\Program Files\Git\bin\bash.exe") {
+        $bashCmd = "C:\Program Files\Git\bin\bash.exe"
+    }
+    & $bashCmd scripts/check_secrets.sh
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 
