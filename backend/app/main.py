@@ -43,6 +43,8 @@ async def lifespan(app: FastAPI):
             "without a configured webhook ID. Configure PAYPAL_WEBHOOK_ID or set PAYPAL_MODE=simulated."
         )
     yield
+    from app.services.paypal_client import paypal_client
+    await paypal_client.aclose()
 
 
 app = FastAPI(

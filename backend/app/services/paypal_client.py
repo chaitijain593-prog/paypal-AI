@@ -7,6 +7,7 @@ Handles sandbox token exchange, Orders v2 inspection, and dispute synchronizatio
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 import logging
@@ -36,13 +37,89 @@ class PayPalSandboxClient:
         self.client_secret = settings.paypal_client_secret
         self._access_token: str | None = None
         self._token_expires_at: float = 0.0
+        self._client: httpx.AsyncClient | None = None
+        self._token_lock: asyncio.Lock | None = None
 
     @property
     def has_credentials(self) -> bool:
         return bool(self.client_id and self.client_secret)
 
+    @property
+    def client(self) -> httpx.AsyncClient:
+        if self._client is None or self._client.is_closed:
+            self._client = httpx.AsyncClient(timeout=10.0)
+        return self._client
+
+    @property
+    def token_lock(self) -> asyncio.Lock:
+        if self._token_lock is None:
+            self._token_lock = asyncio.Lock()
+        return self._token_lock
+
+    async def aclose(self) -> None:
+        """Close the shared HTTP client."""
+        if self._client is not None and not self._client.is_closed:
+            await self._client.aclose()
+        self._client = None
+
+    async def _send_with_retry(
+        self,
+        method: str,
+        url: str,
+        *,
+        headers: dict[str, str] | None = None,
+        json: Any = None,
+        data: Any = None,
+        files: Any = None,
+        max_retries: int = 3,
+        backoff_delays: tuple[float, ...] = (0.5, 1.0, 2.0),
+    ) -> httpx.Response:
+        """Send HTTP request with exponential backoff retry on 429 and 5xx."""
+        attempt = 0
+        while True:
+            try:
+                res = await self.client.request(
+                    method=method,
+                    url=url,
+                    headers=headers,
+                    json=json,
+                    data=data,
+                    files=files,
+                )
+                if res.status_code in (429, 500, 502, 503, 504) and attempt < max_retries:
+                    delay = backoff_delays[min(attempt, len(backoff_delays) - 1)]
+                    logger.warning(
+                        "PayPal returned HTTP %s on %s %s. Retrying in %ss (attempt %d/%d)...",
+                        res.status_code,
+                        method,
+                        url,
+                        delay,
+                        attempt + 1,
+                        max_retries,
+                    )
+                    attempt += 1
+                    await asyncio.sleep(delay)
+                    continue
+                return res
+            except (httpx.TimeoutException, httpx.NetworkError) as e:
+                if attempt < max_retries:
+                    delay = backoff_delays[min(attempt, len(backoff_delays) - 1)]
+                    logger.warning(
+                        "PayPal network/timeout on %s %s: %s. Retrying in %ss (attempt %d/%d)...",
+                        method,
+                        url,
+                        e,
+                        delay,
+                        attempt + 1,
+                        max_retries,
+                    )
+                    attempt += 1
+                    await asyncio.sleep(delay)
+                    continue
+                raise
+
     async def get_access_token(self) -> str | None:
-        """Fetch OAuth2 bearer token from PayPal Sandbox."""
+        """Fetch OAuth2 bearer token from PayPal Sandbox with single-flight locking."""
         if not self.has_credentials:
             return None
 
@@ -51,19 +128,25 @@ class PayPalSandboxClient:
         if self._access_token and now < self._token_expires_at:
             return self._access_token
 
-        auth_header = base64.b64encode(
-            f"{self.client_id}:{self.client_secret}".encode()
-        ).decode()
+        async with self.token_lock:
+            # Re-check under lock (double-checked locking)
+            now = datetime.now(timezone.utc).timestamp()
+            if self._access_token and now < self._token_expires_at:
+                return self._access_token
 
-        headers = {
-            "Authorization": f"Basic {auth_header}",
-            "Content-Type": "application/x-www-form-urlencoded",
-        }
-        data = {"grant_type": "client_credentials"}
+            auth_header = base64.b64encode(
+                f"{self.client_id}:{self.client_secret}".encode()
+            ).decode()
 
-        try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                res = await client.post(
+            headers = {
+                "Authorization": f"Basic {auth_header}",
+                "Content-Type": "application/x-www-form-urlencoded",
+            }
+            data = {"grant_type": "client_credentials"}
+
+            try:
+                res = await self._send_with_retry(
+                    "POST",
                     f"{self.base_url}/v1/oauth2/token",
                     headers=headers,
                     data=data,
@@ -78,10 +161,10 @@ class PayPalSandboxClient:
                     logger.error(
                         "PayPal OAuth2 failed: %s — %s", res.status_code, res.text
                     )
-        except Exception as e:
-            logger.error("PayPal OAuth2 network error: %s", e)
+            except Exception as e:
+                logger.error("PayPal OAuth2 network error: %s", e)
 
-        return None
+            return None
 
     async def get_sandbox_status(self) -> dict[str, Any]:
         """Check live sandbox connection health and credentials validity."""
@@ -156,13 +239,13 @@ class PayPalSandboxClient:
         }
 
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                res = await client.get(
-                    f"{self.base_url}/v2/checkout/orders/{order_id}",
-                    headers=headers,
-                )
-                if res.status_code == 200:
-                    return res.json()
+            res = await self._send_with_retry(
+                "GET",
+                f"{self.base_url}/v2/checkout/orders/{order_id}",
+                headers=headers,
+            )
+            if res.status_code == 200:
+                return res.json()
         except Exception as e:
             logger.error("Error fetching PayPal order %s: %s", order_id, e)
 
@@ -228,16 +311,16 @@ class PayPalSandboxClient:
         }
 
         try:
-            async with httpx.AsyncClient(timeout=15.0) as client:
-                res = await client.post(
-                    f"{self.base_url}/v2/checkout/orders",
-                    headers=headers,
-                    json=payload,
-                )
-                if res.status_code in (200, 201):
-                    return res.json()
-                logger.error("PayPal create_order error %s: %s", res.status_code, res.text)
-                return {"error": res.text, "status_code": res.status_code}
+            res = await self._send_with_retry(
+                "POST",
+                f"{self.base_url}/v2/checkout/orders",
+                headers=headers,
+                json=payload,
+            )
+            if res.status_code in (200, 201):
+                return res.json()
+            logger.error("PayPal create_order error %s: %s", res.status_code, res.text)
+            return {"error": res.text, "status_code": res.status_code}
         except Exception as e:
             logger.error("Error creating PayPal order: %s", e)
             return None
@@ -297,15 +380,15 @@ class PayPalSandboxClient:
             headers["PayPal-Request-Id"] = request_id
 
         try:
-            async with httpx.AsyncClient(timeout=15.0) as client:
-                res = await client.post(
-                    f"{self.base_url}/v2/checkout/orders/{order_id}/capture",
-                    headers=headers,
-                )
-                if res.status_code in (200, 201):
-                    return res.json()
-                logger.error("PayPal capture_order error %s: %s", res.status_code, res.text)
-                return {"error": res.text, "status_code": res.status_code}
+            res = await self._send_with_retry(
+                "POST",
+                f"{self.base_url}/v2/checkout/orders/{order_id}/capture",
+                headers=headers,
+            )
+            if res.status_code in (200, 201):
+                return res.json()
+            logger.error("PayPal capture_order error %s: %s", res.status_code, res.text)
+            return {"error": res.text, "status_code": res.status_code}
         except Exception as e:
             logger.error("Error capturing PayPal order %s: %s", order_id, e)
             return None
@@ -321,15 +404,15 @@ class PayPalSandboxClient:
             "Content-Type": "application/json",
         }
         try:
-            async with httpx.AsyncClient(timeout=15.0) as client:
-                res = await client.get(
-                    f"{self.base_url}/v1/customer/disputes?page_size={page_size}",
-                    headers=headers,
-                )
-                if res.status_code == 200:
-                    return res.json()
-                logger.error("PayPal list_disputes error %s: %s", res.status_code, res.text)
-                return None
+            res = await self._send_with_retry(
+                "GET",
+                f"{self.base_url}/v1/customer/disputes?page_size={page_size}",
+                headers=headers,
+            )
+            if res.status_code == 200:
+                return res.json()
+            logger.error("PayPal list_disputes error %s: %s", res.status_code, res.text)
+            return None
         except Exception as e:
             logger.error("Error listing PayPal disputes: %s", e)
             return None
@@ -345,14 +428,14 @@ class PayPalSandboxClient:
             "Content-Type": "application/json",
         }
         try:
-            async with httpx.AsyncClient(timeout=15.0) as client:
-                res = await client.get(
-                    f"{self.base_url}/v1/customer/disputes/{dispute_id}",
-                    headers=headers,
-                )
-                if res.status_code == 200:
-                    return res.json()
-                return None
+            res = await self._send_with_retry(
+                "GET",
+                f"{self.base_url}/v1/customer/disputes/{dispute_id}",
+                headers=headers,
+            )
+            if res.status_code == 200:
+                return res.json()
+            return None
         except Exception as e:
             logger.error("Error fetching PayPal dispute %s: %s", dispute_id, e)
             return None
@@ -415,33 +498,36 @@ class PayPalSandboxClient:
         }
 
         try:
-            async with httpx.AsyncClient(timeout=15.0) as client:
-                res = await client.post(
-                    f"{self.base_url}/v1/customer/disputes/{dispute_id}/provide-evidence",
-                    headers=headers,
-                    files=files,
-                )
-                debug_id = res.headers.get("paypal-debug-id", "")
-                res_content: Any = {}
-                if res.content:
-                    try:
-                        res_content = res.json()
-                    except Exception:
-                        res_content = res.text
+            res = await self._send_with_retry(
+                "POST",
+                f"{self.base_url}/v1/customer/disputes/{dispute_id}/provide-evidence",
+                headers=headers,
+                files=files,
+            )
+            debug_id = res.headers.get("paypal-debug-id", "")
+            res_content: Any = {}
+            if res.content:
+                try:
+                    res_content = res.json()
+                except Exception:
+                    res_content = res.text
 
-                if res.status_code in (200, 204):
-                    return {
-                        "status": "SUCCESS",
-                        "http_status": res.status_code,
-                        "debug_id": debug_id,
-                        "response": res_content,
-                    }
+            if res.status_code in (200, 204):
                 return {
-                    "status": "ERROR",
+                    "status": "SUCCESS",
                     "http_status": res.status_code,
                     "debug_id": debug_id,
-                    "error": res_content or res.text,
+                    "response": res_content,
                 }
+            return {
+                "status": "ERROR",
+                "http_status": res.status_code,
+                "debug_id": debug_id,
+                "error": res_content or res.text,
+            }
+        except (httpx.TimeoutException, httpx.NetworkError) as e:
+            logger.error("Network/timeout submitting PayPal dispute evidence: %s", e)
+            return {"status": "TIMEOUT", "error": str(e), "is_timeout": True}
         except Exception as e:
             logger.error("Error submitting PayPal dispute evidence: %s", e)
             return {"status": "ERROR", "message": str(e)}
@@ -472,33 +558,33 @@ class PayPalSandboxClient:
             payload["accept_claim_reason"] = accept_claim_reason
 
         try:
-            async with httpx.AsyncClient(timeout=15.0) as client:
-                res = await client.post(
-                    f"{self.base_url}/v1/customer/disputes/{dispute_id}/accept-claim",
-                    headers=headers,
-                    json=payload,
-                )
-                debug_id = res.headers.get("paypal-debug-id", "")
-                res_content: Any = {}
-                if res.content:
-                    try:
-                        res_content = res.json()
-                    except Exception:
-                        res_content = res.text
+            res = await self._send_with_retry(
+                "POST",
+                f"{self.base_url}/v1/customer/disputes/{dispute_id}/accept-claim",
+                headers=headers,
+                json=payload,
+            )
+            debug_id = res.headers.get("paypal-debug-id", "")
+            res_content: Any = {}
+            if res.content:
+                try:
+                    res_content = res.json()
+                except Exception:
+                    res_content = res.text
 
-                if res.status_code in (200, 204):
-                    return {
-                        "status": "SUCCESS",
-                        "http_status": res.status_code,
-                        "debug_id": debug_id,
-                        "response": res_content,
-                    }
+            if res.status_code in (200, 204):
                 return {
-                    "status": "ERROR",
+                    "status": "SUCCESS",
                     "http_status": res.status_code,
                     "debug_id": debug_id,
-                    "error": res_content or res.text,
+                    "response": res_content,
                 }
+            return {
+                "status": "ERROR",
+                "http_status": res.status_code,
+                "debug_id": debug_id,
+                "error": res_content or res.text,
+            }
         except Exception as e:
             logger.error("Error accepting PayPal dispute claim: %s", e)
             return {"status": "ERROR", "message": str(e)}
@@ -532,33 +618,33 @@ class PayPalSandboxClient:
             ]
         }
         try:
-            async with httpx.AsyncClient(timeout=15.0) as client:
-                res = await client.post(
-                    f"{self.base_url}/v1/shipping/trackers-batch",
-                    headers=headers,
-                    json=payload,
-                )
-                debug_id = res.headers.get("paypal-debug-id", "")
-                res_content: Any = {}
-                if res.content:
-                    try:
-                        res_content = res.json()
-                    except Exception:
-                        res_content = res.text
+            res = await self._send_with_retry(
+                "POST",
+                f"{self.base_url}/v1/shipping/trackers-batch",
+                headers=headers,
+                json=payload,
+            )
+            debug_id = res.headers.get("paypal-debug-id", "")
+            res_content: Any = {}
+            if res.content:
+                try:
+                    res_content = res.json()
+                except Exception:
+                    res_content = res.text
 
-                if res.status_code in (200, 201, 204):
-                    return {
-                        "status": "SUCCESS",
-                        "http_status": res.status_code,
-                        "debug_id": debug_id,
-                        "response": res_content,
-                    }
+            if res.status_code in (200, 201, 204):
                 return {
-                    "status": "ERROR",
+                    "status": "SUCCESS",
                     "http_status": res.status_code,
                     "debug_id": debug_id,
-                    "error": res_content or res.text,
+                    "response": res_content,
                 }
+            return {
+                "status": "ERROR",
+                "http_status": res.status_code,
+                "debug_id": debug_id,
+                "error": res_content or res.text,
+            }
         except Exception as e:
             logger.error("Error submitting tracking to PayPal: %s", e)
             return {"status": "ERROR", "message": str(e)}
@@ -593,15 +679,15 @@ class PayPalSandboxClient:
         }
 
         try:
-            async with httpx.AsyncClient(timeout=15.0) as client:
-                res = await client.post(
-                    f"{self.base_url}/v1/notifications/verify-webhook-signature",
-                    headers=headers,
-                    json=payload,
-                )
-                if res.status_code == 200:
-                    data = res.json()
-                    return data.get("verification_status") == "SUCCESS"
+            res = await self._send_with_retry(
+                "POST",
+                f"{self.base_url}/v1/notifications/verify-webhook-signature",
+                headers=headers,
+                json=payload,
+            )
+            if res.status_code == 200:
+                data = res.json()
+                return data.get("verification_status") == "SUCCESS"
         except Exception as e:
             logger.error("Error verifying PayPal webhook signature: %s", e)
         return False
