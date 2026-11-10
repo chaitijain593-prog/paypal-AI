@@ -37,6 +37,9 @@ import {
   ApiProofClaim,
   ApiAuditTrailEntry,
 } from '@/lib/api';
+import DataSourceBadge from '@/components/DataSourceBadge';
+import ErrorState from '@/components/ErrorState';
+import LoadingState from '@/components/LoadingState';
 
 export default function ApprovalQueuePage() {
   const [items, setItems] = useState<ApiControlTowerItem[]>([]);
@@ -52,6 +55,7 @@ export default function ApprovalQueuePage() {
   const [feedbackBanner, setFeedbackBanner] = useState<{
     type: 'success' | 'error' | 'info';
     message: string;
+    paypalDebugId?: string;
   } | null>(null);
   const [copiedHash, setCopiedHash] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState<number | null>(null);
@@ -200,6 +204,7 @@ export default function ApprovalQueuePage() {
       setFeedbackBanner({
         type: 'error',
         message: `Failed to approve dispute: ${err?.message || 'Network error connecting to backend.'}`,
+        paypalDebugId: err?.paypalDebugId,
       });
     } finally {
       setActionLoading(false);
@@ -233,6 +238,7 @@ export default function ApprovalQueuePage() {
       setFeedbackBanner({
         type: 'error',
         message: `Failed to save revisions: ${err?.message || 'Network error connecting to backend.'}`,
+        paypalDebugId: err?.paypalDebugId,
       });
     } finally {
       setActionLoading(false);
@@ -261,6 +267,7 @@ export default function ApprovalQueuePage() {
       setFeedbackBanner({
         type: 'error',
         message: `Failed to concede dispute: ${err?.message || 'Network error connecting to backend.'}`,
+        paypalDebugId: err?.paypalDebugId,
       });
     } finally {
       setActionLoading(false);
@@ -311,9 +318,7 @@ export default function ApprovalQueuePage() {
             <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">
               Safety Ceiling: $500.00
             </span>
-            <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-cyan-500/15 text-cyan-400 border border-cyan-500/30">
-              DATA: SIMULATED
-            </span>
+            <DataSourceBadge source={items[0]?.data_source || 'SIMULATED'} />
           </div>
           <h1 className="text-3xl font-extrabold tracking-tight text-white leading-tight flex items-center gap-3">
             Human Control Tower &amp; Approval Queue
@@ -421,7 +426,7 @@ export default function ApprovalQueuePage() {
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            className={`p-4 rounded-xl border flex items-center justify-between gap-3 text-sm font-medium ${
+            className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-sm font-medium ${
               feedbackBanner.type === 'success'
                 ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300'
                 : feedbackBanner.type === 'error'
@@ -429,25 +434,57 @@ export default function ApprovalQueuePage() {
                 : 'bg-[#0070BA]/20 border-[#0070BA]/40 text-[#3B9EFF]'
             }`}
           >
-            <div className="flex items-center gap-2">
+            <div className="flex items-start gap-2.5">
               {feedbackBanner.type === 'success' ? (
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
               ) : feedbackBanner.type === 'error' ? (
-                <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
+                <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
               ) : (
-                <Info className="w-4 h-4 text-[#3B9EFF] shrink-0" />
+                <Info className="w-4 h-4 text-[#3B9EFF] shrink-0 mt-0.5" />
               )}
-              <span>{feedbackBanner.message}</span>
+              <div>
+                <span>{feedbackBanner.message}</span>
+                {feedbackBanner.paypalDebugId && (
+                  <div className="mt-1 font-mono text-xs text-amber-300 bg-black/40 px-2 py-0.5 rounded border border-amber-500/30 inline-block">
+                    PayPal Debug ID: {feedbackBanner.paypalDebugId}
+                  </div>
+                )}
+              </div>
             </div>
-            <button
-              onClick={() => setFeedbackBanner(null)}
-              className="text-xs opacity-70 hover:opacity-100"
-            >
-              Dismiss
-            </button>
+            <div className="flex items-center gap-2 self-end sm:self-auto">
+              {feedbackBanner.type === 'error' && (
+                <button
+                  onClick={handleApprove}
+                  disabled={actionLoading}
+                  className="px-3 py-1 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-200 border border-red-500/40 text-xs font-semibold flex items-center gap-1 transition-all"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  Retry Submission
+                </button>
+              )}
+              <button
+                onClick={() => setFeedbackBanner(null)}
+                className="text-xs opacity-70 hover:opacity-100 px-2 py-1"
+              >
+                Dismiss
+              </button>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Explicit Backend Error or Loading Banner */}
+      {fetchError && (
+        <ErrorState
+          title="Approval Queue Unavailable"
+          message={fetchError}
+          onRetry={loadItems}
+        />
+      )}
+
+      {loading && !fetchError && (
+        <LoadingState message="Connecting to FastAPI Control Tower on port 8000..." />
+      )}
 
       {/* ── 2. Split-Pane Master-Detail Layout ───────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -622,6 +659,15 @@ export default function ApprovalQueuePage() {
                     </span>
                     <span className="text-xs px-2 py-0.5 rounded bg-white/[0.06] text-slate-300 font-semibold">
                       Order: {selectedItem.transaction_id}
+                    </span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-bold border ${
+                      selectedItem.draft_status === 'DRAFT_FAILED' || selectedItem.draft_status === 'LLM_UNAVAILABLE'
+                        ? 'bg-red-500/15 text-red-400 border-red-500/30'
+                        : selectedItem.draft_status === 'NO_EVIDENCE'
+                        ? 'bg-amber-500/15 text-amber-400 border-amber-500/30'
+                        : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                    }`}>
+                      Draft: {selectedItem.draft_status || 'AI_DRAFTED'}
                     </span>
                     <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-[#0070BA]/20 text-[#3B9EFF] border border-[#0070BA]/30">
                       Fee at Risk: ${selectedItem.dispute_fee_at_risk.toFixed(2)}
@@ -872,8 +918,19 @@ export default function ApprovalQueuePage() {
                     {/* Button 1: Approve & Submit */}
                     <button
                       onClick={handleApprove}
-                      disabled={actionLoading}
-                      className="w-full sm:w-auto flex-1 py-2.5 px-4 rounded-xl font-bold text-xs bg-emerald-500 hover:bg-emerald-600 text-slate-950 transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-500/20 disabled:opacity-50"
+                      disabled={
+                        actionLoading ||
+                        selectedItem.draft_status === 'DRAFT_FAILED' ||
+                        selectedItem.draft_status === 'LLM_UNAVAILABLE' ||
+                        selectedItem.draft_status === 'NO_EVIDENCE' ||
+                        !selectedItem.drafted_defense_letter?.trim()
+                      }
+                      className="w-full sm:w-auto flex-1 py-2.5 px-4 rounded-xl font-bold text-xs bg-emerald-500 hover:bg-emerald-600 text-slate-950 transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-500/20 disabled:opacity-40 disabled:cursor-not-allowed"
+                      title={
+                        selectedItem.draft_status === 'DRAFT_FAILED'
+                          ? 'Cannot approve failed draft. Use Edit Draft to write human defense.'
+                          : 'Approve & Push to PayPal API'
+                      }
                     >
                       <CheckCircle2 className="w-4 h-4" />
                       Approve &amp; Push to PayPal API

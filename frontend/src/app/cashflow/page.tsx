@@ -14,6 +14,9 @@ import {
   Zap,
 } from 'lucide-react';
 import { api, ApiCashFlowRunway } from '@/lib/api';
+import ErrorState from '@/components/ErrorState';
+import LoadingState from '@/components/LoadingState';
+import DataSourceBadge from '@/components/DataSourceBadge';
 
 interface DisputeItem {
   id: string;
@@ -40,24 +43,43 @@ export default function CashFlowPage() {
   const [invoicesCollected, setInvoicesCollected] = useState(false);
   const [recoveredDisputeIds, setRecoveredDisputeIds] = useState<string[]>([]);
   const [liveRunway, setLiveRunway] = useState<ApiCashFlowRunway | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const loadRunway = () => {
+    setLoading(true);
+    setError(null);
     let mounted = true;
-    api.getCashFlowRunway().then((res) => {
-      if (mounted && res) {
-        setLiveRunway(res);
-      }
-    });
+
+    api.getCashFlowRunway()
+      .then((res) => {
+        if (!mounted) return;
+        if (res) {
+          setLiveRunway(res);
+        }
+        setLoading(false);
+      })
+      .catch((err: any) => {
+        if (!mounted) return;
+        setError(err?.message || 'Failed to connect to Cash-Flow Runway service on port 8000.');
+        setLoading(false);
+      });
+
     return () => {
       mounted = false;
     };
+  };
+
+  useEffect(() => {
+    return loadRunway();
   }, []);
 
-  // Baseline 41 days or live runway calculation
-  const baseDays = liveRunway ? Math.round(liveRunway.runway_months * 30) : 41;
+  // Baseline days or live runway calculation
+  const baseDays = liveRunway ? Math.round(liveRunway.runway_months * 30) : 0;
   const additionalDays =
     (disputesResolved ? 12 : 0) + (invoicesCollected ? 14 : 0);
-  const currentRunway = baseDays + additionalDays;
+  const currentRunwayNumber = baseDays + additionalDays;
+  const currentRunway = liveRunway ? currentRunwayNumber : '—';
   const capitalRecovered =
     (disputesResolved ? 3840 : 0) + (invoicesCollected ? 8400 : 0);
 
@@ -80,9 +102,7 @@ export default function CashFlowPage() {
               <span className="w-2 h-2 rounded-full bg-emerald-400" />
               Cash-Flow Runway Guardian Synced
             </span>
-            <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">
-              DATA: {liveRunway?.data_source || 'SIMULATED'}
-            </span>
+            <DataSourceBadge source={liveRunway?.data_source || 'SIMULATED'} />
           </div>
           <h1 className="text-3xl font-extrabold tracking-tight text-white leading-tight">
             Cash-Flow Runway Guardian
@@ -92,6 +112,18 @@ export default function CashFlowPage() {
           </p>
         </div>
       </div>
+
+      {error && (
+        <ErrorState
+          title="Cash-Flow Runway Offline"
+          message={error}
+          onRetry={loadRunway}
+        />
+      )}
+
+      {loading && !error && (
+        <LoadingState message="Calculating operating runway and burn metrics from backend..." />
+      )}
 
       {/* Main Runway Hero Gauge Card (p-6, rounded-xl, no glow blur) */}
       <div className="p-6 lg:p-8 rounded-xl bg-[#121826] border border-white/[0.06]">
@@ -129,7 +161,7 @@ export default function CashFlowPage() {
               <div className="w-full h-3 rounded-full bg-white/[0.04] border border-white/[0.08] overflow-hidden p-0.5">
                 <motion.div
                   initial={{ width: '40%' }}
-                  animate={{ width: `${Math.min(100, (currentRunway / 80) * 100)}%` }}
+                  animate={{ width: `${Math.min(100, (currentRunwayNumber / 80) * 100)}%` }}
                   transition={{ duration: 0.5, ease: 'easeOut' }}
                   className="h-full rounded-full bg-[#0070BA]"
                 />

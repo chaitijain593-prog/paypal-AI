@@ -33,6 +33,9 @@ import {
   themeQuartz,
 } from 'ag-grid-community';
 import { api, ApiTransaction } from '@/lib/api';
+import ErrorState from '@/components/ErrorState';
+import LoadingState from '@/components/LoadingState';
+import DataSourceBadge from '@/components/DataSourceBadge';
 
 // Register all Community features for AG Grid v36
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -103,10 +106,13 @@ const quickQueries = [
 ];
 
 export default function TransactionTable() {
-  const [rowData, setRowData] = useState<GridTransaction[]>(defaultTransactions);
+  const [rowData, setRowData] = useState<GridTransaction[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
   const [quickFilter, setQuickFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [backendSynced, setBackendSynced] = useState(false);
+  const [dataSource, setDataSource] = useState<'LIVE' | 'SIMULATED'>('SIMULATED');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [nlQuery, setNlQuery] = useState('');
   const [nlLoading, setNlLoading] = useState(false);
@@ -116,31 +122,48 @@ export default function TransactionTable() {
 
   const gridApiRef = useRef<GridApi<GridTransaction> | null>(null);
 
-  // Sync with live FastAPI backend
-  useEffect(() => {
+  const loadTransactions = () => {
+    setLoading(true);
+    setError(null);
     let mounted = true;
-    api.getTransactions().then((res) => {
-      if (mounted && res && res.transactions && res.transactions.length > 0) {
-        setBackendSynced(true);
-        const mapped: GridTransaction[] = res.transactions.map((t: ApiTransaction) => ({
-          id: t.id,
-          date: t.created_at ? t.created_at.slice(0, 10) : '2026-10-28',
-          buyer: t.buyer?.name || 'Buyer',
-          buyerEmail: t.buyer?.email || 'buyer@example.com',
-          amount: t.amount,
-          status: normalizeStatus(t.status),
-          type: t.type || 'Product Sale',
-          description: t.description || 'PayPal Payment',
-          paymentMethod: t.payment_method || 'PayPal',
-          hasDispute: t.has_dispute || false,
-          disputeId: t.dispute_id,
-        }));
-        setRowData(mapped);
-      }
-    });
+
+    api.getTransactions()
+      .then((res) => {
+        if (!mounted) return;
+        if (res && res.transactions) {
+          setBackendSynced(true);
+          setDataSource((res.data_source as 'LIVE' | 'SIMULATED') || 'SIMULATED');
+          const mapped: GridTransaction[] = res.transactions.map((t: ApiTransaction) => ({
+            id: t.id,
+            date: t.created_at ? t.created_at.slice(0, 10) : '2026-10-28',
+            buyer: t.buyer?.name || 'Buyer',
+            buyerEmail: t.buyer?.email || 'buyer@example.com',
+            amount: t.amount,
+            status: normalizeStatus(t.status),
+            type: t.type || 'Product Sale',
+            description: t.description || 'PayPal Payment',
+            paymentMethod: t.payment_method || 'PayPal',
+            hasDispute: t.has_dispute || false,
+            disputeId: t.dispute_id,
+          }));
+          setRowData(mapped);
+        }
+        setLoading(false);
+      })
+      .catch((err: any) => {
+        if (!mounted) return;
+        setError(err?.message || 'Failed to load transaction ledger from backend.');
+        setLoading(false);
+      });
+
     return () => {
       mounted = false;
     };
+  };
+
+  // Sync with live FastAPI backend
+  useEffect(() => {
+    return loadTransactions();
   }, []);
 
   const onGridReady = (params: GridReadyEvent<GridTransaction>) => {
@@ -366,9 +389,7 @@ export default function TransactionTable() {
               ? 'FastAPI Live Ledger Synced (:8000/api/transactions)'
               : 'Standby / Live Ledger Ready'}
           </span>
-          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">
-            DATA: {backendSynced ? 'PERSISTED_SQLITE' : 'SIMULATED'}
-          </span>
+          <DataSourceBadge source={backendSynced ? dataSource : 'SIMULATED'} />
           <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#FF6900]/15 text-[#FF6900] border border-[#FF6900]/30 flex items-center gap-1">
             <TableIcon className="w-2.5 h-2.5" /> AG Grid v36 Enterprise Master-Detail ($5,000 Prize)
           </span>
@@ -482,6 +503,18 @@ export default function TransactionTable() {
       </div>
 
       {/* AG Grid Container */}
+      {error && (
+        <ErrorState
+          title="Transaction Ledger Offline"
+          message={error}
+          onRetry={loadTransactions}
+        />
+      )}
+
+      {loading && !error && (
+        <LoadingState message="Fetching live transaction records from FastAPI backend..." />
+      )}
+
       <div className="glass-card overflow-hidden p-2">
         <div style={{ height: 520, width: '100%' }}>
           <AgGridReact<GridTransaction>

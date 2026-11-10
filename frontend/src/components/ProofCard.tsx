@@ -23,6 +23,9 @@ import {
   Lock,
 } from 'lucide-react';
 import { api, ApiProofVerifyResult, ApiGenerateProofResponse } from '@/lib/api';
+import DataSourceBadge from '@/components/DataSourceBadge';
+import ErrorState from '@/components/ErrorState';
+import LoadingState from '@/components/LoadingState';
 
 interface ProofItem {
   id: string;
@@ -133,7 +136,9 @@ const statusConfig = {
 };
 
 export default function ProofCard() {
-  const [proofs, setProofs] = useState<ProofItem[]>(defaultProofs);
+  const [proofs, setProofs] = useState<ProofItem[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<ProofItem | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
   const [liveVerificationResult, setLiveVerificationResult] = useState<ApiProofVerifyResult | null>(null);
@@ -149,43 +154,61 @@ export default function ProofCard() {
   const [formAddress, setFormAddress] = useState('456 Elm St, San Jose, CA 95113');
   const [formUseZk, setFormUseZk] = useState(true);
 
-  useEffect(() => {
+  const loadProofs = () => {
+    setLoading(true);
+    setError(null);
     let mounted = true;
-    api.getProofs().then((res: any) => {
-      if (mounted && res) {
-        if (res.merkle_root) setLiveMerkleRoot(res.merkle_root);
-        if (res.proofs && res.proofs.length > 0) {
-          const typeIconMap: Record<string, React.ElementType> = {
-            'EVD-USPS-TRACK': Truck,
-            'EVD-GPS-GEOFENCE': MapPin,
-            'EVD-SIG-SCAN': FileSignature,
-            'EVD-RING-CAM': Image,
-            'EVD-BUYER-MSG': MessageSquare,
-          };
-          const mappedProofs: ProofItem[] = res.proofs.map((p: any) => {
-            const statusKey = p.status ? p.status.toLowerCase() : 'verified';
-            return {
-              id: p.id,
-              disputeId: p.dispute_id || 'DSP-4471',
-              type: p.filename ? p.filename.replace(/_/g, ' ').replace(/\.[^/.]+$/, '').toUpperCase() : 'DELIVERY CONFIRMATION',
-              typeIcon: typeIconMap[p.evidence_id] || Truck,
-              description: `RFC 6962 Domain-Separated Evidence [${p.evidence_id}] — ${p.filename || 'evidence.bin'}`,
-              hash: p.current_hash,
-              status: (statusKey === 'tampered' ? 'tampered' : statusKey === 'pending' ? 'pending' : 'verified') as ProofItem['status'],
-              timestamp: p.verified_at ? p.verified_at.slice(0, 19).replace('T', ' ') + ' UTC' : '2026-10-15 14:34:22 UTC',
-              source: `PaySentinel Proof Engine (${p.algorithm || 'SHA-256'})`,
-              merkleRoot: res.merkle_root || '9b2e8f...c4a1d7',
-              merklePath: [`leaf: ${p.original_hash?.slice(0, 10)}...`, `root: ${res.merkle_root?.slice(0, 10)}...`],
-              originalData: `{"evidence_id":"${p.evidence_id}","filename":"${p.filename}","file_size":${p.file_size_bytes}}`,
+
+    api.getProofs()
+      .then((res: any) => {
+        if (!mounted) return;
+        if (res) {
+          if (res.merkle_root) setLiveMerkleRoot(res.merkle_root);
+          if (res.proofs && res.proofs.length > 0) {
+            const typeIconMap: Record<string, React.ElementType> = {
+              'EVD-USPS-TRACK': Truck,
+              'EVD-GPS-GEOFENCE': MapPin,
+              'EVD-SIG-SCAN': FileSignature,
+              'EVD-RING-CAM': Image,
+              'EVD-BUYER-MSG': MessageSquare,
             };
-          });
-          setProofs(mappedProofs);
+            const mappedProofs: ProofItem[] = res.proofs.map((p: any) => {
+              const statusKey = p.status ? p.status.toLowerCase() : 'verified';
+              return {
+                id: p.id,
+                disputeId: p.dispute_id || 'DSP-4471',
+                type: p.filename ? p.filename.replace(/_/g, ' ').replace(/\.[^/.]+$/, '').toUpperCase() : 'DELIVERY CONFIRMATION',
+                typeIcon: typeIconMap[p.evidence_id] || Truck,
+                description: `RFC 6962 Domain-Separated Evidence [${p.evidence_id}] — ${p.filename || 'evidence.bin'}`,
+                hash: p.current_hash,
+                status: (statusKey === 'tampered' ? 'tampered' : statusKey === 'pending' ? 'pending' : 'verified') as ProofItem['status'],
+                timestamp: p.verified_at ? p.verified_at.slice(0, 19).replace('T', ' ') + ' UTC' : '2026-10-15 14:34:22 UTC',
+                source: `PaySentinel Proof Engine (${p.algorithm || 'SHA-256'})`,
+                merkleRoot: res.merkle_root || '9b2e8f...c4a1d7',
+                merklePath: [`leaf: ${p.original_hash?.slice(0, 10)}...`, `root: ${res.merkle_root?.slice(0, 10)}...`],
+                originalData: `{"evidence_id":"${p.evidence_id}","filename":"${p.filename}","file_size":${p.file_size_bytes}}`,
+              };
+            });
+            setProofs(mappedProofs);
+          } else {
+            setProofs(defaultProofs);
+          }
         }
-      }
-    });
+        setLoading(false);
+      })
+      .catch((err: any) => {
+        if (!mounted) return;
+        setError(err?.message || 'Failed to load Merkle proof ledger from backend.');
+        setLoading(false);
+      });
+
     return () => {
       mounted = false;
     };
+  };
+
+  useEffect(() => {
+    return loadProofs();
   }, []);
 
   const handleGenerateProof = async (e: React.FormEvent) => {
@@ -281,6 +304,18 @@ export default function ProofCard() {
           <span>Generate Salted Merkle Proof</span>
         </button>
       </div>
+
+      {error && (
+        <ErrorState
+          title="Cryptographic Ledger Offline"
+          message={error}
+          onRetry={loadProofs}
+        />
+      )}
+
+      {loading && !error && (
+        <LoadingState message="Verifying Ed25519 Merkle proof ledger from backend..." />
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {proofs.map((proof, i) => {

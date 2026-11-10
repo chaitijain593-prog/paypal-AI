@@ -227,6 +227,8 @@ export interface ApiControlTowerItem {
   created_at: string;
   updated_at: string;
   creator_name?: string;
+  draft_status?: 'AI_DRAFTED' | 'HUMAN_AUTHORED' | 'NO_EVIDENCE' | 'DRAFT_FAILED' | 'LLM_UNAVAILABLE' | string;
+  paypal_debug_id?: string;
   data_source?: 'LIVE' | 'SIMULATED';
 }
 
@@ -296,13 +298,28 @@ export interface ApiDashboardStats {
   }>;
 }
 
-async function request<T>(endpoint: string, options?: RequestInit): Promise<T | null> {
-  try {
-    // If running in browser, proxy mutating calls or all calls through /api/proxy
-    const isBrowser = typeof window !== 'undefined';
-    const targetUrl = isBrowser ? `/api/proxy${endpoint.replace(/^\/api/, '')}` : `${API_BASE_URL}${endpoint}`;
+export class ApiError extends Error {
+  status: number;
+  detail: string;
+  paypalDebugId?: string;
 
-    const res = await fetch(targetUrl, {
+  constructor(status: number, message: string, detail: string, paypalDebugId?: string) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.detail = detail;
+    this.paypalDebugId = paypalDebugId;
+  }
+}
+
+async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
+  // If running in browser, proxy mutating calls or all calls through /api/proxy
+  const isBrowser = typeof window !== 'undefined';
+  const targetUrl = isBrowser ? `/api/proxy${endpoint.replace(/^\/api/, '')}` : `${API_BASE_URL}${endpoint}`;
+
+  let res: Response;
+  try {
+    res = await fetch(targetUrl, {
       ...options,
       headers: {
         'Content-Type': 'application/json',
@@ -311,17 +328,41 @@ async function request<T>(endpoint: string, options?: RequestInit): Promise<T | 
       },
       next: { revalidate: 0 }, // Disable Next.js caching for real-time data
     });
+  } catch (error) {
+    const netMsg = error instanceof Error ? error.message : 'Network failure';
+    console.warn(`API [${endpoint}] network connection failed:`, error);
+    throw new ApiError(0, `Backend Unreachable (Port 8000): ${netMsg}`, netMsg);
+  }
 
-    if (!res.ok) {
-      console.warn(`API [${endpoint}] responded with status ${res.status}`);
-      return null;
+  if (!res.ok) {
+    let detail = '';
+    let paypalDebugId = res.headers.get('Paypal-Debug-Id') || res.headers.get('paypal-debug-id') || undefined;
+    try {
+      const errJson = await res.json();
+      detail = errJson.detail || errJson.message || JSON.stringify(errJson);
+      if (!paypalDebugId && errJson.paypal_debug_id) {
+        paypalDebugId = errJson.paypal_debug_id;
+      }
+    } catch {
+      detail = res.statusText || `HTTP ${res.status}`;
     }
 
-    return (await res.json()) as T;
-  } catch (error) {
-    console.warn(`API [${endpoint}] network error:`, error);
-    return null;
+    let userMsg = detail;
+    if (res.status === 401) {
+      userMsg = 'Authentication Required (401): Missing or invalid maker-checker authorization token.';
+    } else if (res.status === 403) {
+      userMsg = detail.includes('cap')
+        ? `Authorization Forbidden (403): ${detail}`
+        : 'Authorization Forbidden (403): Insufficient role permissions or amount exceeds operator high-value cap.';
+    } else if (res.status === 409) {
+      userMsg = `Conflict (409): ${detail || 'Concurrent modification or invalid draft state.'}`;
+    }
+
+    console.warn(`API [${endpoint}] responded with status ${res.status}:`, detail);
+    throw new ApiError(res.status, userMsg, detail, paypalDebugId);
   }
+
+  return (await res.json()) as T;
 }
 
 export interface ApiCorpusSubsetMetrics {
@@ -358,7 +399,7 @@ export const api = {
 
   // Transactions
   getTransactions: () =>
-    request<{ count: number; transactions: ApiTransaction[] }>('/api/transactions'),
+    request<{ count: number; transactions: ApiTransaction[]; data_source?: 'LIVE' | 'SIMULATED' }>('/api/transactions'),
   getTransaction: (id: string) => request<ApiTransaction>(`/api/transactions/${id}`),
   queryTransactionsNL: (query: string) =>
     request<{

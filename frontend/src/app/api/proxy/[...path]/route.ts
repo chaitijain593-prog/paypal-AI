@@ -56,11 +56,16 @@ async function proxyRequest(request: NextRequest, subpath: string, method: strin
     });
 
     const resBody = await res.text();
+    const forwardHeaders: Record<string, string> = {
+      'Content-Type': res.headers.get('Content-Type') || 'application/json',
+    };
+    const debugId = res.headers.get('Paypal-Debug-Id') || res.headers.get('paypal-debug-id');
+    if (debugId) {
+      forwardHeaders['Paypal-Debug-Id'] = debugId;
+    }
     return new NextResponse(resBody, {
       status: res.status,
-      headers: {
-        'Content-Type': res.headers.get('Content-Type') || 'application/json',
-      },
+      headers: forwardHeaders,
     });
   } catch (err: unknown) {
     const errorMessage = err instanceof Error ? err.message : 'Unknown backend connection error';

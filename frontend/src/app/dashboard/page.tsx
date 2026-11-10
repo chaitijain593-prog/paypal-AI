@@ -14,47 +14,72 @@ import {
 } from 'lucide-react';
 import StatsCard from '@/components/StatsCard';
 import ActivityFeed from '@/components/ActivityFeed';
+import ErrorState from '@/components/ErrorState';
+import LoadingState from '@/components/LoadingState';
+import DataSourceBadge from '@/components/DataSourceBadge';
 import { api, ApiDashboardStats } from '@/lib/api';
 
 export default function DashboardPage() {
   const [stats, setStats] = useState<ApiDashboardStats | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
   const [paypalStatusText, setPaypalStatusText] = useState('PayPal Sandbox Connected · Orders v2 Active');
 
-  useEffect(() => {
+  const loadData = () => {
+    setLoading(true);
+    setError(null);
     let mounted = true;
-    api.getDashboardStats().then((res) => {
-      if (mounted && res) {
-        setStats(res);
-      }
-    });
-    api.getPayPalStatus().then((res) => {
-      if (mounted && res) {
-        const modeLabel = res.mode === 'SANDBOX_LIVE'
-          ? 'PayPal Sandbox Live · OAuth2 Active'
-          : 'PayPal Sandbox Connected · Orders v2 Active';
-        setPaypalStatusText(modeLabel);
-      }
-    });
+
+    Promise.all([
+      api.getDashboardStats().catch((err: any) => {
+        throw err;
+      }),
+      api.getPayPalStatus().catch(() => null),
+    ])
+      .then(([statsRes, ppRes]) => {
+        if (!mounted) return;
+        if (statsRes) {
+          setStats(statsRes);
+        }
+        if (ppRes) {
+          const modeLabel =
+            ppRes.mode === 'SANDBOX_LIVE'
+              ? 'PayPal Sandbox Live · OAuth2 Active'
+              : 'PayPal Sandbox Connected · Orders v2 Active';
+          setPaypalStatusText(modeLabel);
+        }
+        setLoading(false);
+      })
+      .catch((err: any) => {
+        if (!mounted) return;
+        setError(err?.message || 'Failed to load merchant metrics from backend.');
+        setLoading(false);
+      });
+
     return () => {
       mounted = false;
     };
+  };
+
+  useEffect(() => {
+    return loadData();
   }, []);
 
   const totalVolumeDisplay = stats
     ? `$${stats.total_revenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-    : '$5,601.45';
+    : '—';
 
   const atRiskDisplay = stats
     ? `${stats.open_disputes} Cases ($${stats.total_at_risk.toLocaleString('en-US', { minimumFractionDigits: 2 })})`
-    : '3 Cases ($3,998.98)';
+    : '—';
 
   const proofRateDisplay = stats
     ? `${Math.round((stats.proofs_verified / Math.max(1, stats.proofs_verified + stats.proofs_tampered)) * 100)}%`
-    : '98.6%';
+    : '—';
 
   const runwayDaysDisplay = stats
     ? `${Math.round(stats.runway_months * 30)} Days`
-    : '75 Days';
+    : '—';
 
   return (
     <div className="space-y-8">
@@ -62,11 +87,12 @@ export default function DashboardPage() {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pb-6 border-b border-white/[0.06]">
         <div>
           {/* Exactly ONE status badge */}
-          <div className="mb-3">
+          <div className="mb-3 flex items-center gap-2">
             <span className="px-3 py-1 rounded-full text-xs font-semibold bg-[#0070BA]/15 text-[#3B9EFF] border border-[#0070BA]/30 inline-flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-emerald-400" />
               {paypalStatusText}
             </span>
+            <DataSourceBadge source={stats?.data_source || 'SIMULATED'} />
           </div>
           <h1 className="text-3xl font-extrabold tracking-tight text-white leading-tight">
             Merchant Defense Command Center
@@ -93,6 +119,18 @@ export default function DashboardPage() {
           </Link>
         </div>
       </div>
+
+      {error && (
+        <ErrorState
+          title="Backend Connection Offline"
+          message={error}
+          onRetry={loadData}
+        />
+      )}
+
+      {loading && !error && (
+        <LoadingState message="Fetching live telemetry from FastAPI backend..." />
+      )}
 
       {/* 4 Key Stats Cards (gap-4) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

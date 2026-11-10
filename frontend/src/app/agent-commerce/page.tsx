@@ -28,6 +28,9 @@ import {
   Truck,
 } from 'lucide-react';
 import { api, ApiAgentCommerceSession, ApiAgentCommerceStep } from '@/lib/api';
+import ErrorState from '@/components/ErrorState';
+import LoadingState from '@/components/LoadingState';
+import DataSourceBadge from '@/components/DataSourceBadge';
 
 const defaultSession: ApiAgentCommerceSession = {
   session_id: 'COMM-CYCLE-8910',
@@ -140,6 +143,8 @@ const productOptions = [
 
 export default function AgentCommercePage() {
   const [session, setSession] = useState<ApiAgentCommerceSession>(defaultSession);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedProduct, setSelectedProduct] = useState(productOptions[0]);
   const [simulateDispute, setSimulateDispute] = useState<boolean>(true);
   const [injectAdversarial, setInjectAdversarial] = useState<boolean>(false);
@@ -147,17 +152,33 @@ export default function AgentCommercePage() {
   const [activeStepIndex, setActiveStepIndex] = useState<number>(5);
   const [copiedPayload, setCopiedPayload] = useState<string | null>(null);
 
-  useEffect(() => {
+  const loadCommerceStatus = () => {
+    setLoading(true);
+    setError(null);
     let mounted = true;
-    api.getAgentCommerceStatus().then((res) => {
-      if (mounted && res && res.steps && res.steps.length > 0) {
-        setSession(res);
-        setActiveStepIndex(res.steps.length - 1);
-      }
-    });
+
+    api.getAgentCommerceStatus()
+      .then((res) => {
+        if (!mounted) return;
+        if (res && res.steps && res.steps.length > 0) {
+          setSession(res);
+          setActiveStepIndex(res.steps.length - 1);
+        }
+        setLoading(false);
+      })
+      .catch((err: any) => {
+        if (!mounted) return;
+        setError(err?.message || 'Failed to connect to Agent Commerce service on port 8000.');
+        setLoading(false);
+      });
+
     return () => {
       mounted = false;
     };
+  };
+
+  useEffect(() => {
+    return loadCommerceStatus();
   }, []);
 
   const handleRunCycle = async () => {
@@ -210,6 +231,7 @@ export default function AgentCommercePage() {
             <span className="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-[#FF6900]/15 text-[#FF6900] border border-[#FF6900]/30">
               🏆 Best Agentic Commerce ($5,000 Target)
             </span>
+            <DataSourceBadge source="LIVE" />
           </div>
           <h1 className="text-3xl font-extrabold tracking-tight text-white leading-tight flex items-center gap-3">
             Agent-vs-Agent Autonomous Commerce Loop
@@ -240,6 +262,18 @@ export default function AgentCommercePage() {
           </button>
         </div>
       </div>
+
+      {error && (
+        <ErrorState
+          title="Agent Commerce Offline"
+          message={error}
+          onRetry={loadCommerceStatus}
+        />
+      )}
+
+      {loading && !error && (
+        <LoadingState message="Connecting to autonomous agent commerce loop..." />
+      )}
 
       {/* ── Configuration & Scenario Controls ───────────────────────────── */}
       <div className="p-5 rounded-2xl bg-[#121826] border border-white/[0.06] space-y-4">
