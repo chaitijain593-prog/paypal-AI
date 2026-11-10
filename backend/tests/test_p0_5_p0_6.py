@@ -63,7 +63,7 @@ def test_webhook_dispute_no_tracking_sets_no_evidence_and_empty_letter(monkeypat
         },
     }
 
-    res = client.post("/api/webhooks/paypal", json=payload)
+    res = client.post("/api/webhooks/paypal", json=payload, headers={"X-PaySentinel-Simulated": "true"})
     assert res.status_code == 200
 
     _, items = control_tower_service.get_items()
@@ -114,7 +114,7 @@ def test_webhook_dispute_with_tracking_extracts_real_carrier_bytes(monkeypatch):
         "recommended_action": "SUBMIT_EVIDENCE",
     }
     with patch("app.services.defense_drafter._query_gemini_defense_draft", new=AsyncMock(return_value=mock_llm)):
-        res = client.post("/api/webhooks/paypal", json=payload)
+        res = client.post("/api/webhooks/paypal", json=payload, headers={"X-PaySentinel-Simulated": "true"})
     assert res.status_code == 200
 
     # Verify RAW_EVIDENCE_STORE has the real carrier tracking bytes
@@ -147,7 +147,7 @@ def test_webhook_buyer_prompt_injection_flagged(monkeypatch):
         },
     }
 
-    res = client.post("/api/webhooks/paypal", json=payload)
+    res = client.post("/api/webhooks/paypal", json=payload, headers={"X-PaySentinel-Simulated": "true"})
     assert res.status_code == 200
 
     _, items = control_tower_service.get_items()
@@ -180,7 +180,7 @@ def test_webhook_high_value_dispute_disables_autopilot(monkeypatch):
         },
     }
 
-    res = client.post("/api/webhooks/paypal", json=payload)
+    res = client.post("/api/webhooks/paypal", json=payload, headers={"X-PaySentinel-Simulated": "true"})
     assert res.status_code == 200
 
     _, items = control_tower_service.get_items()

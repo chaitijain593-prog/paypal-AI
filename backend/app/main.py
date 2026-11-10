@@ -31,7 +31,11 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Fail startup loudly if sandbox mode is active but webhook verification ID is missing."""
+    """Fail startup loudly if sandbox mode is active but webhook verification ID is missing or if unsigned webhooks in production."""
+    if settings.app_env in ("production", "prod") and settings.allow_unsigned_webhooks:
+        raise RuntimeError(
+            "FATAL STARTUP SECURITY ERROR: ALLOW_UNSIGNED_WEBHOOKS cannot be enabled in production environment."
+        )
     if settings.paypal_mode in ("sandbox", "live") and not settings.paypal_webhook_id:
         raise RuntimeError(
             "FATAL STARTUP CONFIGURATION ERROR: PAYPAL_MODE is configured as 'sandbox'/'live', "

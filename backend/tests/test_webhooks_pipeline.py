@@ -11,6 +11,7 @@ Tests for Step 5: Webhooks Pipeline Hardening
 import json
 import sys
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -59,7 +60,7 @@ def test_allow_unsigned_webhook_when_dev_flag_enabled(monkeypatch):
         "event_type": "PAYMENT.CAPTURE.COMPLETED",
         "resource": {"id": "CAP-123", "amount": {"value": "100.00"}},
     }
-    res = client.post("/api/webhooks/paypal", json=payload)
+    res = client.post("/api/webhooks/paypal", json=payload, headers={"X-PaySentinel-Simulated": "true"})
     assert res.status_code == 200
     data = res.json()
     assert data["status"] in ("RECEIVED", "PROCESSED")
@@ -86,12 +87,13 @@ def test_sandbox_signature_verification_success(monkeypatch):
         "event_type": "PAYMENT.CAPTURE.COMPLETED",
         "resource": {"id": "CAP-123", "amount": {"value": "45.00"}},
     }
+    now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     headers = {
         "PAYPAL-AUTH-ALGO": "SHA256withRSA",
         "PAYPAL-CERT-URL": "https://api.sandbox.paypal.com/v1/notifications/certs/CERT-123",
         "PAYPAL-TRANSMISSION-ID": "TRANS-123",
         "PAYPAL-TRANSMISSION-SIG": "VALID_SIGNATURE_BASE64",
-        "PAYPAL-TRANSMISSION-TIME": "2026-11-09T10:00:00Z",
+        "PAYPAL-TRANSMISSION-TIME": now_iso,
     }
 
     with patch.object(paypal_client, "verify_webhook_signature", new=AsyncMock(return_value=True)):
@@ -115,12 +117,13 @@ def test_sandbox_signature_verification_failure(monkeypatch):
         "event_type": "PAYMENT.CAPTURE.COMPLETED",
         "resource": {"id": "CAP-123", "amount": {"value": "45.00"}},
     }
+    now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     headers = {
         "PAYPAL-AUTH-ALGO": "SHA256withRSA",
         "PAYPAL-CERT-URL": "https://api.sandbox.paypal.com/v1/notifications/certs/CERT-123",
         "PAYPAL-TRANSMISSION-ID": "TRANS-123",
         "PAYPAL-TRANSMISSION-SIG": "FORGED_SIGNATURE",
-        "PAYPAL-TRANSMISSION-TIME": "2026-11-09T10:00:00Z",
+        "PAYPAL-TRANSMISSION-TIME": now_iso,
     }
 
     with patch.object(paypal_client, "verify_webhook_signature", new=AsyncMock(return_value=False)):
@@ -142,12 +145,13 @@ def test_replay_deduplication(monkeypatch):
     }
 
     # First call: accepted & processed in background
-    res1 = client.post("/api/webhooks/paypal", json=payload)
+    sim_hdr = {"X-PaySentinel-Simulated": "true"}
+    res1 = client.post("/api/webhooks/paypal", json=payload, headers=sim_hdr)
     assert res1.status_code == 200
     assert res1.json()["status"] in ("RECEIVED", "PROCESSED")
 
     # Second call: duplicate dropped
-    res2 = client.post("/api/webhooks/paypal", json=payload)
+    res2 = client.post("/api/webhooks/paypal", json=payload, headers=sim_hdr)
     assert res2.status_code == 200
     assert res2.json()["status"] == "DUPLICATE_DROPPED"
 
@@ -168,9 +172,10 @@ def test_handler_failure_then_successful_retry(monkeypatch):
         },
     }
 
+    sim_hdr = {"X-PaySentinel-Simulated": "true"}
     # 1. First attempt returns 200 RECEIVED, background task fails due to simulated exception
     with patch("app.routers.webhooks.draft_dispute_defense", side_effect=RuntimeError("Simulated drafter crash")):
-        res1 = client.post("/api/webhooks/paypal", json=payload)
+        res1 = client.post("/api/webhooks/paypal", json=payload, headers=sim_hdr)
         assert res1.status_code == 200
         assert res1.json()["status"] == "RECEIVED"
 
@@ -181,7 +186,7 @@ def test_handler_failure_then_successful_retry(monkeypatch):
     assert "Simulated drafter crash" in row["error_message"]
 
     # 2. Retry with same event_id succeeds
-    res2 = client.post("/api/webhooks/paypal", json=payload)
+    res2 = client.post("/api/webhooks/paypal", json=payload, headers=sim_hdr)
     assert res2.status_code == 200
     assert res2.json()["status"] in ("RECEIVED", "PROCESSED")
 
@@ -191,7 +196,7 @@ def test_handler_failure_then_successful_retry(monkeypatch):
     assert row_updated["error_message"] is None
 
     # 3. Third call: now that it is PROCESSED, it gets deduplicated
-    res3 = client.post("/api/webhooks/paypal", json=payload)
+    res3 = client.post("/api/webhooks/paypal", json=payload, headers=sim_hdr)
     assert res3.status_code == 200
     assert res3.json()["status"] == "DUPLICATE_DROPPED"
 
@@ -227,7 +232,7 @@ def test_customer_dispute_created_pipeline(monkeypatch):
         "recommended_action": "SUBMIT_EVIDENCE",
     }
     with patch("app.services.defense_drafter._query_gemini_defense_draft", new=AsyncMock(return_value=mock_draft)):
-        res = client.post("/api/webhooks/paypal", json=payload)
+        res = client.post("/api/webhooks/paypal", json=payload, headers={"X-PaySentinel-Simulated": "true"})
     assert res.status_code == 200
     data = res.json()
     assert data["status"] in ("RECEIVED", "PROCESSED")
@@ -255,7 +260,7 @@ def test_get_events_reads_from_database(monkeypatch):
         "event_type": "PAYMENT.CAPTURE.COMPLETED",
         "resource": {"id": "CAP-TEST-DB", "amount": {"value": "12.50"}},
     }
-    client.post("/api/webhooks/paypal", json=payload)
+    client.post("/api/webhooks/paypal", json=payload, headers={"X-PaySentinel-Simulated": "true"})
 
     res = client.get("/api/webhooks/events")
     assert res.status_code == 200

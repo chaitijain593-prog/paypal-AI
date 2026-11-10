@@ -53,7 +53,7 @@ def test_webhook_returns_received_immediately_with_slow_drafter(monkeypatch):
 
     t0 = time.time()
     with patch("app.services.defense_drafter._query_gemini_defense_draft", new=AsyncMock(side_effect=slow_draft)):
-        res = client.post("/api/webhooks/paypal", json=payload)
+        res = client.post("/api/webhooks/paypal", json=payload, headers={"X-PaySentinel-Simulated": "true"})
     elapsed = time.time() - t0
 
     assert res.status_code == 200
@@ -84,7 +84,7 @@ def test_webhook_duplicate_in_flight_dropped(monkeypatch):
         "event_type": "CUSTOMER.DISPUTE.CREATED",
         "resource": {"dispute_id": "PP-INFLIGHT-1"},
     }
-    res = client.post("/api/webhooks/paypal", json=payload)
+    res = client.post("/api/webhooks/paypal", json=payload, headers={"X-PaySentinel-Simulated": "true"})
     assert res.status_code == 200
     assert res.json()["status"] == "DUPLICATE_IN_FLIGHT"
 
@@ -100,7 +100,7 @@ def test_webhook_events_query_by_id(monkeypatch):
         "event_type": "PAYMENT.CAPTURE.COMPLETED",
         "resource": {"id": "CAP-123", "amount": {"value": "99.00"}},
     }
-    res = client.post("/api/webhooks/paypal", json=payload)
+    res = client.post("/api/webhooks/paypal", json=payload, headers={"X-PaySentinel-Simulated": "true"})
     assert res.status_code == 200
 
     query_res = client.get(f"/api/webhooks/events?event_id={event_id}")

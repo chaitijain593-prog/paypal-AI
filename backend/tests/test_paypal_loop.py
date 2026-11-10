@@ -10,6 +10,7 @@ Covers:
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import sqlite3
 from unittest.mock import AsyncMock, patch
 
@@ -89,14 +90,15 @@ def test_webhook_happy_path_and_deduplication(monkeypatch):
     }
 
     # First delivery: accepted in RECEIVED status and processed in background
-    res = client.post("/api/webhooks/paypal", json=payload)
+    sim_headers = {"X-PaySentinel-Simulated": "true"}
+    res = client.post("/api/webhooks/paypal", json=payload, headers=sim_headers)
     assert res.status_code == 200
     data = res.json()
     assert data["status"] in ["RECEIVED", "PROCESSED"]
     assert data["event_id"] == event_id
 
     # Second delivery with exact same ID: duplicate dropped
-    res_dup = client.post("/api/webhooks/paypal", json=payload)
+    res_dup = client.post("/api/webhooks/paypal", json=payload, headers=sim_headers)
     assert res_dup.status_code == 200
     data_dup = res_dup.json()
     assert data_dup["status"] == "DUPLICATE_DROPPED"
@@ -105,6 +107,7 @@ def test_webhook_happy_path_and_deduplication(monkeypatch):
 
 def test_webhook_invalid_signature_rejection():
     # In sandbox mode, missing or invalid signature headers must return 400
+    now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     with patch("app.routers.webhooks.settings.paypal_mode", "sandbox"), \
          patch.object(type(SandboxDisputeProvider().client), "has_credentials", True), \
          patch.object(
@@ -117,7 +120,7 @@ def test_webhook_invalid_signature_rejection():
             "PAYPAL-CERT-URL": "https://api.sandbox.paypal.com/cert.pem",
             "PAYPAL-TRANSMISSION-ID": "TX-998811",
             "PAYPAL-TRANSMISSION-SIG": "INVALID_SIGNATURE_STRING",
-            "PAYPAL-TRANSMISSION-TIME": "2026-11-08T20:00:00Z",
+            "PAYPAL-TRANSMISSION-TIME": now_iso,
         }
         payload = {
             "id": "WH-FORGED-001",

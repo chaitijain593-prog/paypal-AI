@@ -79,6 +79,7 @@ async def receive_paypal_webhook(
     paypal_transmission_id: str | None = Header(None, alias="PAYPAL-TRANSMISSION-ID"),
     paypal_transmission_sig: str | None = Header(None, alias="PAYPAL-TRANSMISSION-SIG"),
     paypal_transmission_time: str | None = Header(None, alias="PAYPAL-TRANSMISSION-TIME"),
+    x_paysentinel_simulated: str | None = Header(None, alias="X-PaySentinel-Simulated"),
 ):
     """
     Receives and processes PayPal webhooks:
@@ -119,7 +120,43 @@ async def receive_paypal_webhook(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Missing PayPal transmission signature headers. Unsigned webhooks are rejected.",
             )
+        if settings.paypal_mode != "sandbox":
+            if not x_paysentinel_simulated or x_paysentinel_simulated.lower() != "true":
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Unsigned webhooks in simulated mode require header 'X-PaySentinel-Simulated: true'.",
+                )
     else:
+        # Validate cert_url scheme and domain
+        import urllib.parse
+        parsed_cert = urllib.parse.urlparse(paypal_cert_url)
+        if parsed_cert.scheme.lower() != "https" or not (
+            parsed_cert.hostname == "paypal.com"
+            or (parsed_cert.hostname and parsed_cert.hostname.endswith(".paypal.com"))
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid PayPal certificate URL: host '{parsed_cert.hostname}' is not authorized.",
+            )
+
+        # Validate transmission_time within 5 minutes (300 seconds)
+        try:
+            now_utc = datetime.now(timezone.utc)
+            t_str = paypal_transmission_time.replace("Z", "+00:00")
+            parsed_time = datetime.fromisoformat(t_str)
+            if abs((now_utc - parsed_time).total_seconds()) > 300:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="PayPal transmission time is outside the acceptable 5-minute window.",
+                )
+        except HTTPException:
+            raise
+        except Exception:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid PAYPAL-TRANSMISSION-TIME format.",
+            )
+
         is_live_sandbox = settings.paypal_mode == "sandbox" and paypal_client.has_credentials
         if is_live_sandbox:
             if not settings.paypal_webhook_id:
