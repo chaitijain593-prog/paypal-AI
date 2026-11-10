@@ -1,5 +1,8 @@
 # PaySentinel AI — PayPal Sandbox 5-Minute Evaluation Runbook
 
+> [!NOTE]
+> **Zero-Config Simulated Evaluation Mode**: If you are a hackathon judge or evaluator and want to explore the entire application immediately without creating PayPal Developer sandbox accounts, simply keep `PAYPAL_MODE=simulated` (the default). The application will simulate authentic PayPal Orders v2, dispute webhooks, and carrier tracking while executing real cryptographic Merkle proof calculations and real AI defense drafting.
+
 **Goal:** Step-by-step verification of real PayPal Sandbox Dispute Ingestion, Merkle Tree Proof verification, AI Firewall inspection, Maker-Checker Review, and Evidence Submission to PayPal.
 
 ---

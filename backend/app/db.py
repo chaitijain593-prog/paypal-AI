@@ -275,6 +275,25 @@ def verify_audit_hash_chain(item_id: str) -> tuple[bool, str]:
     return True, f"Hash chain verified across {len(rows)} entries."
 
 
+def search_audit_logs(keyword: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
+    """Forensic search across cryptographic audit log entries for Elastic SIEM integration."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        if keyword:
+            pattern = f"%{keyword}%"
+            cursor.execute(
+                """
+                SELECT * FROM audit_log
+                WHERE item_id LIKE ? OR actor LIKE ? OR action LIKE ? OR reviewer_notes LIKE ? OR entry_hash LIKE ?
+                ORDER BY id DESC LIMIT ?
+                """,
+                (pattern, pattern, pattern, pattern, pattern, limit),
+            )
+        else:
+            cursor.execute("SELECT * FROM audit_log ORDER BY id DESC LIMIT ?", (limit,))
+        return [dict(r) for r in cursor.fetchall()]
+
+
 def is_duplicate_webhook(event_id: str) -> bool:
     """Checks whether a webhook event has already been successfully processed in SQLite."""
     with get_db_connection() as conn:

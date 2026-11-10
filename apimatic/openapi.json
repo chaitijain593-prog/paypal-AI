@@ -1,0 +1,3721 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "PaySentinel AI",
+    "description": "AI-powered PayPal dispute management, proof verification, and cash-flow intelligence.",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/dashboard/stats": {
+      "get": {
+        "tags": [
+          "Dashboard"
+        ],
+        "summary": "Dashboard Stats",
+        "description": "Return aggregated dashboard statistics for the frontend.",
+        "operationId": "dashboard_stats_api_dashboard_stats_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardStats"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/transactions": {
+      "get": {
+        "tags": [
+          "Transactions"
+        ],
+        "summary": "List Transactions",
+        "description": "Return all mock transactions.",
+        "operationId": "list_transactions_api_transactions_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/transactions/nl-query": {
+      "post": {
+        "tags": [
+          "Transactions"
+        ],
+        "summary": "Natural Language Query",
+        "description": "Translates plain-English transaction queries into validated filters\n(e.g., 'Show disputes over $500', 'Find failed or pending payments').",
+        "operationId": "natural_language_query_api_transactions_nl_query_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NLQueryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NLQueryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/transactions/{txn_id}": {
+      "get": {
+        "tags": [
+          "Transactions"
+        ],
+        "summary": "Get Transaction",
+        "description": "Return a single transaction by ID.",
+        "operationId": "get_transaction_api_transactions__txn_id__get",
+        "parameters": [
+          {
+            "name": "txn_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Txn Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/disputes": {
+      "get": {
+        "tags": [
+          "Disputes"
+        ],
+        "summary": "List Disputes",
+        "description": "Return all mock disputes with evidence and timelines.",
+        "operationId": "list_disputes_api_disputes_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/disputes/{dispute_id}": {
+      "get": {
+        "tags": [
+          "Disputes"
+        ],
+        "summary": "Get Dispute",
+        "description": "Return a single dispute by ID.",
+        "operationId": "get_dispute_api_disputes__dispute_id__get",
+        "parameters": [
+          {
+            "name": "dispute_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dispute Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Dispute"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/disputes/{dispute_id}/respond": {
+      "post": {
+        "tags": [
+          "Disputes"
+        ],
+        "summary": "Respond Dispute",
+        "description": "Submit a response to a dispute with AI analysis.",
+        "operationId": "respond_dispute_api_disputes__dispute_id__respond_post",
+        "parameters": [
+          {
+            "name": "dispute_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dispute Id"
+            }
+          },
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "X-API-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DisputeResponse"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DisputeResponseResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/arena/simulations": {
+      "get": {
+        "tags": [
+          "Dispute Arena"
+        ],
+        "summary": "List Simulations",
+        "description": "Return all past arena simulation results.",
+        "operationId": "list_simulations_api_arena_simulations_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/arena/run": {
+      "post": {
+        "tags": [
+          "Dispute Arena"
+        ],
+        "summary": "Run Simulation",
+        "description": "Run a new attacker-vs-defender arena simulation using the Arena Engine.",
+        "operationId": "run_simulation_api_arena_run_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArenaRunRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/arena/evaluate-attack": {
+      "post": {
+        "tags": [
+          "Dispute Arena"
+        ],
+        "summary": "Evaluate Custom Attack",
+        "description": "Evaluate a custom judge/red-teamer attack through the Untrusted Input Firewall.",
+        "operationId": "evaluate_custom_attack_api_arena_evaluate_attack_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LiveAttackRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveAttackResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/arena/eval": {
+      "get": {
+        "tags": [
+          "Dispute Arena"
+        ],
+        "summary": "Run Firewall Eval",
+        "description": "Run full evaluation corpus against Untrusted Input Firewall and return live metrics.",
+        "operationId": "run_firewall_eval_api_arena_eval_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Dispute Arena"
+        ],
+        "summary": "Run Firewall Eval",
+        "description": "Run full evaluation corpus against Untrusted Input Firewall and return live metrics.",
+        "operationId": "run_firewall_eval_api_arena_eval_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/proofs/public-key": {
+      "get": {
+        "tags": [
+          "Proof Engine"
+        ],
+        "summary": "Get Proof Public Key",
+        "description": "Return the merchant's Ed25519 public key for verifying signed Merkle roots.",
+        "operationId": "get_proof_public_key_api_proofs_public_key_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/proofs": {
+      "get": {
+        "tags": [
+          "Proof Engine"
+        ],
+        "summary": "List Proofs",
+        "description": "Return all proof records with calculated Merkle root and verification status.",
+        "operationId": "list_proofs_api_proofs_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/proofs/generate": {
+      "post": {
+        "tags": [
+          "Proof Engine"
+        ],
+        "summary": "Generate Proof",
+        "description": "Dynamically generate a verified Merkle proof tree with salted attribute commitments.",
+        "operationId": "generate_proof_api_proofs_generate_post",
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "X-API-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateProofRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerateProofResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/proofs/{proof_id}/verify": {
+      "get": {
+        "tags": [
+          "Proof Engine"
+        ],
+        "summary": "Verify Proof",
+        "description": "Verify a specific proof record by mathematically re-computing SHA-256 hash.",
+        "operationId": "verify_proof_api_proofs__proof_id__verify_get",
+        "parameters": [
+          {
+            "name": "proof_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Proof Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/proofs/{proof_id}/tamper": {
+      "post": {
+        "tags": [
+          "Proof Engine"
+        ],
+        "summary": "Tamper Proof",
+        "description": "Simulates evidence tampering by flipping a stored raw evidence byte.",
+        "operationId": "tamper_proof_api_proofs__proof_id__tamper_post",
+        "parameters": [
+          {
+            "name": "proof_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Proof Id"
+            }
+          },
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "X-API-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cashflow/runway": {
+      "get": {
+        "tags": [
+          "Cash Flow"
+        ],
+        "summary": "Cashflow Runway",
+        "description": "Return cash-flow runway analysis including dispute impact.",
+        "operationId": "cashflow_runway_api_cashflow_runway_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/webhooks/events": {
+      "get": {
+        "tags": [
+          "Webhooks"
+        ],
+        "summary": "List Webhook Events",
+        "description": "Return the webhook event log directly from SQLite, optionally filtered by event_id.",
+        "operationId": "list_webhook_events_api_webhooks_events_get",
+        "parameters": [
+          {
+            "name": "event_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Event Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/webhooks/zapier/sample-payloads": {
+      "get": {
+        "tags": [
+          "Webhooks"
+        ],
+        "summary": "Get Zapier Sample Payloads",
+        "description": "Returns pre-formatted Zapier trigger payload schemas (Zapier Sponsor Tooling).\nEnables zero-friction setup of automated Zaps in Zapier's workflow visual builder.",
+        "operationId": "get_zapier_sample_payloads_api_webhooks_zapier_sample_payloads_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/webhooks/zapier/dispatch": {
+      "post": {
+        "tags": [
+          "Webhooks"
+        ],
+        "summary": "Zapier Dispatch Event",
+        "description": "Dispatches a PaySentinel security alert or dispute state change to Zapier workflows.",
+        "operationId": "zapier_dispatch_event_api_webhooks_zapier_dispatch_post",
+        "parameters": [
+          {
+            "name": "event_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Event type: high_value_dispute_escalated | prompt_injection_blocked | carrier_claim_recommended",
+              "default": "high_value_dispute_escalated",
+              "title": "Event Type"
+            },
+            "description": "Event type: high_value_dispute_escalated | prompt_injection_blocked | carrier_claim_recommended"
+          },
+          {
+            "name": "webhook_url",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional live Zapier catch webhook URL to trigger external Zap",
+              "title": "Webhook Url"
+            },
+            "description": "Optional live Zapier catch webhook URL to trigger external Zap"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/webhooks/paypal": {
+      "post": {
+        "tags": [
+          "Webhooks"
+        ],
+        "summary": "Receive Paypal Webhook",
+        "description": "Receives and processes PayPal webhooks:\n1. Signature verification: Reject unsigned events unless explicit DEV flag is set.\n2. Process-then-commit: Transition status PROCESSING -> PROCESSED (or FAILED on error to allow retries).\n3. On CUSTOMER.DISPUTE.CREATED: Fetch dispute, draft defense via defense_drafter, route to Control Tower.",
+        "operationId": "receive_paypal_webhook_api_webhooks_paypal_post",
+        "parameters": [
+          {
+            "name": "PAYPAL-AUTH-ALGO",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Paypal-Auth-Algo"
+            }
+          },
+          {
+            "name": "PAYPAL-CERT-URL",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Paypal-Cert-Url"
+            }
+          },
+          {
+            "name": "PAYPAL-TRANSMISSION-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Paypal-Transmission-Id"
+            }
+          },
+          {
+            "name": "PAYPAL-TRANSMISSION-SIG",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Paypal-Transmission-Sig"
+            }
+          },
+          {
+            "name": "PAYPAL-TRANSMISSION-TIME",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Paypal-Transmission-Time"
+            }
+          },
+          {
+            "name": "X-PaySentinel-Simulated",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Paysentinel-Simulated"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/paypal/status": {
+      "get": {
+        "tags": [
+          "PayPal Sandbox"
+        ],
+        "summary": "Get Paypal Status",
+        "description": "Check live status of PayPal Sandbox connectivity and OAuth2 token.",
+        "operationId": "get_paypal_status_api_paypal_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/paypal/sync": {
+      "post": {
+        "tags": [
+          "PayPal Sandbox"
+        ],
+        "summary": "Sync Paypal Transactions",
+        "description": "Sync PayPal Sandbox orders into the merchant ledger.",
+        "operationId": "sync_paypal_transactions_api_paypal_sync_post",
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "X-API-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/paypal/orders/{order_id}": {
+      "get": {
+        "tags": [
+          "PayPal Sandbox"
+        ],
+        "summary": "Get Order Details",
+        "description": "Query PayPal Orders v2 API for specific order details.",
+        "operationId": "get_order_details_api_paypal_orders__order_id__get",
+        "parameters": [
+          {
+            "name": "order_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Order Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/paypal/orders/create": {
+      "post": {
+        "tags": [
+          "PayPal Sandbox"
+        ],
+        "summary": "Create Order",
+        "description": "Create an order using PayPal Orders v2 API with idempotency.",
+        "operationId": "create_order_api_paypal_orders_create_post",
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "X-API-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateOrderRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/paypal/orders/{order_id}/capture": {
+      "post": {
+        "tags": [
+          "PayPal Sandbox"
+        ],
+        "summary": "Capture Order",
+        "description": "Capture payment for an order using PayPal Orders v2 API with idempotency.",
+        "operationId": "capture_order_api_paypal_orders__order_id__capture_post",
+        "parameters": [
+          {
+            "name": "order_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Order Id"
+            }
+          },
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "X-API-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/CaptureOrderRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/control-tower/pending": {
+      "get": {
+        "tags": [
+          "Human Control Tower"
+        ],
+        "summary": "List Control Tower Items",
+        "description": "List all Human Control Tower dispute queue items and high-level KPIs.\nSupports filtering by status or viewing all items including audit history.",
+        "operationId": "list_control_tower_items_api_control_tower_pending_get",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by status: PENDING_REVIEW, APPROVED_AND_SUBMITTED, EDITED_AND_SUBMITTED, REJECTED_CONCEDED, or ALL",
+              "title": "Status"
+            },
+            "description": "Filter by status: PENDING_REVIEW, APPROVED_AND_SUBMITTED, EDITED_AND_SUBMITTED, REJECTED_CONCEDED, or ALL"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControlTowerListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/control-tower/{item_id}": {
+      "get": {
+        "tags": [
+          "Human Control Tower"
+        ],
+        "summary": "Get Control Tower Item",
+        "description": "Retrieve details for a single Control Tower queue item.",
+        "operationId": "get_control_tower_item_api_control_tower__item_id__get",
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Item Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControlTowerItem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/control-tower/{item_id}/verify-audit-chain": {
+      "get": {
+        "tags": [
+          "Human Control Tower"
+        ],
+        "summary": "Verify Item Audit Chain",
+        "description": "Verifies cryptographic hash chain of the item's audit log.",
+        "operationId": "verify_item_audit_chain_api_control_tower__item_id__verify_audit_chain_get",
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Item Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/control-tower/{item_id}/approve": {
+      "post": {
+        "tags": [
+          "Human Control Tower"
+        ],
+        "summary": "Approve Control Tower Item",
+        "description": "Approve an AI-drafted dispute defense and dispatch it directly to PayPal Sandbox.\nDerives reviewer identity and role strictly from authenticated API token.\nEnforces maker-checker and senior role requirements for high-value claims.",
+        "operationId": "approve_control_tower_item_api_control_tower__item_id__approve_post",
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Item Id"
+            }
+          },
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "X-API-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ControlTowerApproveRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControlTowerItem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/control-tower/{item_id}/edit": {
+      "post": {
+        "tags": [
+          "Human Control Tower"
+        ],
+        "summary": "Edit Control Tower Item",
+        "description": "Save operator revisions to the AI-drafted defense letter and submit to PayPal Sandbox.\nDerives reviewer identity and role strictly from authenticated API token.\nEnforces maker-checker and senior role requirements for high-value claims.",
+        "operationId": "edit_control_tower_item_api_control_tower__item_id__edit_post",
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Item Id"
+            }
+          },
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "X-API-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ControlTowerEditRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControlTowerItem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/control-tower/{item_id}/reject": {
+      "post": {
+        "tags": [
+          "Human Control Tower"
+        ],
+        "summary": "Reject Control Tower Item",
+        "description": "Reject the AI defense and execute a concession/refund via PayPal Sandbox\nto eliminate merchant dispute penalty fees ($15 saved).\nDerives reviewer identity and role strictly from authenticated API token.",
+        "operationId": "reject_control_tower_item_api_control_tower__item_id__reject_post",
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Item Id"
+            }
+          },
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "X-API-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ControlTowerRejectRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControlTowerItem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/control-tower/{item_id}/refresh": {
+      "post": {
+        "tags": [
+          "Human Control Tower"
+        ],
+        "summary": "Reconcile Control Tower Item",
+        "description": "Manually query PayPal Disputes API to reconcile an item in AMBIGUOUS_TIMEOUT or SUBMITTING.\nIf PayPal reports dispute is UNDER_REVIEW, item transitions to APPROVED_AND_SUBMITTED.",
+        "operationId": "reconcile_control_tower_item_api_control_tower__item_id__refresh_post",
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Item Id"
+            }
+          },
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "X-API-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControlTowerItem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/control-tower/{item_id}/reconcile": {
+      "post": {
+        "tags": [
+          "Human Control Tower"
+        ],
+        "summary": "Reconcile Control Tower Item",
+        "description": "Manually query PayPal Disputes API to reconcile an item in AMBIGUOUS_TIMEOUT or SUBMITTING.\nIf PayPal reports dispute is UNDER_REVIEW, item transitions to APPROVED_AND_SUBMITTED.",
+        "operationId": "reconcile_control_tower_item_api_control_tower__item_id__reconcile_post",
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Item Id"
+            }
+          },
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "X-API-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControlTowerItem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/control-tower/reset": {
+      "post": {
+        "tags": [
+          "Human Control Tower"
+        ],
+        "summary": "Reset Control Tower Store",
+        "description": "Reset Control Tower store to initial seed items.\nStrictly restricted to APP_ENV=development and authenticated operators.\nNEVER deletes or modifies historical audit_log rows.",
+        "operationId": "reset_control_tower_store_api_control_tower_reset_post",
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "X-API-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControlTowerListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/control-tower/audit/elastic-search": {
+      "post": {
+        "tags": [
+          "Human Control Tower"
+        ],
+        "summary": "Elastic Audit Search",
+        "description": "Elasticsearch DSL Compatibility Endpoint for SIEM and Audit Forensics (Elastic Sponsor Tooling).\nAccepts Elasticsearch query payload format and returns standard Elasticsearch hits.",
+        "operationId": "elastic_audit_search_api_control_tower_audit_elastic_search_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "type": "object",
+                "title": "Query",
+                "default": {}
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/agent-commerce/sessions": {
+      "get": {
+        "tags": [
+          "Agent Commerce Loop"
+        ],
+        "summary": "Get Agent Commerce Status",
+        "description": "Retrieve the latest Agent-vs-Agent commerce session and step trace.",
+        "operationId": "get_agent_commerce_status_api_agent_commerce_sessions_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentCommerceSession"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/agent-commerce/status": {
+      "get": {
+        "tags": [
+          "Agent Commerce Loop"
+        ],
+        "summary": "Get Agent Commerce Status",
+        "description": "Retrieve the latest Agent-vs-Agent commerce session and step trace.",
+        "operationId": "get_agent_commerce_status_api_agent_commerce_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentCommerceSession"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/agent-commerce/run": {
+      "post": {
+        "tags": [
+          "Agent Commerce Loop"
+        ],
+        "summary": "Run Agent Commerce Cycle",
+        "description": "Execute a full autonomous commerce cycle:\n1. Buyer Agent checks spend policy & creates PayPal Orders v2\n2. PayPal Sandbox captures payment\n3. Merchant Agent pushes courier tracking & anchors Merkle leaf\n4. Buyer Agent raises dispute\n5. PaySentinel Firewall inspects & merchant agent counters or escalates",
+        "operationId": "run_agent_commerce_cycle_api_agent_commerce_run_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentCommerceRunRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentCommerceSession"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/health": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Health Check",
+        "operationId": "health_check_api_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Health Check",
+        "operationId": "health_check_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/": {
+      "get": {
+        "tags": [
+          "Root"
+        ],
+        "summary": "Root",
+        "operationId": "root__get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AIRecommendedAction": {
+        "type": "string",
+        "enum": [
+          "SUBMIT_EVIDENCE",
+          "ACCEPT_CLAIM_AND_REFUND",
+          "ESCALATE_MANUAL_INQUIRY"
+        ],
+        "title": "AIRecommendedAction"
+      },
+      "AgentCommerceActor": {
+        "type": "string",
+        "enum": [
+          "BUYER_AGENT",
+          "MERCHANT_AGENT",
+          "PAYPAL_SANDBOX"
+        ],
+        "title": "AgentCommerceActor"
+      },
+      "AgentCommerceRunRequest": {
+        "properties": {
+          "product_name": {
+            "type": "string",
+            "title": "Product Name",
+            "default": "Keychron Q1 Pro Mechanical Keyboard"
+          },
+          "amount": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              }
+            ],
+            "title": "Amount",
+            "default": "249.99"
+          },
+          "simulate_dispute": {
+            "type": "boolean",
+            "title": "Simulate Dispute",
+            "default": true
+          },
+          "inject_adversarial": {
+            "type": "boolean",
+            "title": "Inject Adversarial",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "AgentCommerceRunRequest"
+      },
+      "AgentCommerceSession": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "title": "Session Id"
+          },
+          "product_name": {
+            "type": "string",
+            "title": "Product Name"
+          },
+          "amount": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency",
+            "default": "USD"
+          },
+          "buyer_spend_cap": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Buyer Spend Cap"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "default": "COMPLETED"
+          },
+          "dispute_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dispute Id"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/AgentCommerceStep"
+            },
+            "type": "array",
+            "title": "Steps"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "data_source": {
+            "type": "string",
+            "enum": [
+              "LIVE",
+              "SIMULATED"
+            ],
+            "title": "Data Source",
+            "default": "SIMULATED"
+          }
+        },
+        "type": "object",
+        "required": [
+          "session_id",
+          "product_name",
+          "amount",
+          "created_at"
+        ],
+        "title": "AgentCommerceSession"
+      },
+      "AgentCommerceStep": {
+        "properties": {
+          "step_number": {
+            "type": "integer",
+            "title": "Step Number"
+          },
+          "actor": {
+            "$ref": "#/components/schemas/AgentCommerceActor"
+          },
+          "action": {
+            "type": "string",
+            "title": "Action"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "default": "SUCCESS"
+          },
+          "payload_preview": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Payload Preview"
+          },
+          "data_source": {
+            "type": "string",
+            "enum": [
+              "LIVE",
+              "SIMULATED"
+            ],
+            "title": "Data Source",
+            "default": "SIMULATED"
+          }
+        },
+        "type": "object",
+        "required": [
+          "step_number",
+          "actor",
+          "action",
+          "description",
+          "timestamp"
+        ],
+        "title": "AgentCommerceStep"
+      },
+      "ArenaRunRequest": {
+        "properties": {
+          "dispute_type": {
+            "$ref": "#/components/schemas/DisputeReason",
+            "default": "ITEM_NOT_RECEIVED"
+          },
+          "attacker_strategy": {
+            "type": "string",
+            "title": "Attacker Strategy",
+            "default": "aggressive"
+          },
+          "defender_strategy": {
+            "type": "string",
+            "title": "Defender Strategy",
+            "default": "evidence_based"
+          },
+          "num_rounds": {
+            "type": "integer",
+            "maximum": 10.0,
+            "minimum": 1.0,
+            "title": "Num Rounds",
+            "default": 5
+          }
+        },
+        "type": "object",
+        "title": "ArenaRunRequest"
+      },
+      "AuditTrailEntry": {
+        "properties": {
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          },
+          "actor": {
+            "type": "string",
+            "title": "Actor"
+          },
+          "action": {
+            "type": "string",
+            "title": "Action"
+          },
+          "previous_state": {
+            "type": "string",
+            "title": "Previous State"
+          },
+          "new_state": {
+            "type": "string",
+            "title": "New State"
+          },
+          "reviewer_notes": {
+            "type": "string",
+            "title": "Reviewer Notes"
+          },
+          "payload_hash": {
+            "type": "string",
+            "title": "Payload Hash"
+          },
+          "paypal_api_status": {
+            "type": "string",
+            "title": "Paypal Api Status"
+          },
+          "prev_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prev Hash"
+          },
+          "entry_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entry Hash"
+          },
+          "paypal_debug_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paypal Debug Id"
+          },
+          "paypal_response_json": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paypal Response Json"
+          }
+        },
+        "type": "object",
+        "required": [
+          "timestamp",
+          "actor",
+          "action",
+          "previous_state",
+          "new_state",
+          "reviewer_notes",
+          "payload_hash",
+          "paypal_api_status"
+        ],
+        "title": "AuditTrailEntry"
+      },
+      "BuyerInfo": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "email": {
+            "type": "string",
+            "title": "Email"
+          },
+          "payer_id": {
+            "type": "string",
+            "title": "Payer Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "email",
+          "payer_id"
+        ],
+        "title": "BuyerInfo"
+      },
+      "CaptureOrderRequest": {
+        "properties": {
+          "request_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 128
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Id"
+          }
+        },
+        "type": "object",
+        "title": "CaptureOrderRequest"
+      },
+      "ControlTowerApproveRequest": {
+        "properties": {
+          "reviewer_name": {
+            "type": "string",
+            "title": "Reviewer Name",
+            "default": "Merchant Admin"
+          },
+          "reviewer_notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewer Notes"
+          }
+        },
+        "type": "object",
+        "title": "ControlTowerApproveRequest"
+      },
+      "ControlTowerEditRequest": {
+        "properties": {
+          "updated_defense_letter": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Updated Defense Letter"
+          },
+          "updated_action": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated Action"
+          },
+          "reviewer_name": {
+            "type": "string",
+            "title": "Reviewer Name",
+            "default": "Merchant Admin"
+          },
+          "reviewer_notes": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Reviewer Notes"
+          },
+          "submit": {
+            "type": "boolean",
+            "title": "Submit",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "updated_defense_letter",
+          "reviewer_notes"
+        ],
+        "title": "ControlTowerEditRequest"
+      },
+      "ControlTowerItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "Unique Queue ID, e.g. CT-9021"
+          },
+          "dispute_id": {
+            "type": "string",
+            "title": "Dispute Id",
+            "description": "PayPal Sandbox Dispute ID, e.g. PP-D-88412"
+          },
+          "transaction_id": {
+            "type": "string",
+            "title": "Transaction Id",
+            "description": "Associated PayPal Order/Capture ID"
+          },
+          "buyer_name": {
+            "type": "string",
+            "title": "Buyer Name"
+          },
+          "buyer_email": {
+            "type": "string",
+            "title": "Buyer Email"
+          },
+          "dispute_reason": {
+            "type": "string",
+            "title": "Dispute Reason"
+          },
+          "item_name": {
+            "type": "string",
+            "title": "Item Name"
+          },
+          "amount": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency",
+            "default": "USD"
+          },
+          "dispute_fee_at_risk": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dispute Fee At Risk"
+          },
+          "sla_deadline": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Sla Deadline"
+          },
+          "escalation_triggers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Escalation Triggers"
+          },
+          "ai_confidence_score": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Ai Confidence Score"
+          },
+          "ai_recommended_action": {
+            "$ref": "#/components/schemas/AIRecommendedAction"
+          },
+          "ai_rationale": {
+            "type": "string",
+            "title": "Ai Rationale"
+          },
+          "drafted_defense_letter": {
+            "type": "string",
+            "title": "Drafted Defense Letter"
+          },
+          "draft_status": {
+            "$ref": "#/components/schemas/DraftStatus",
+            "default": "DRAFT_VALID"
+          },
+          "auto_pilot": {
+            "type": "boolean",
+            "title": "Auto Pilot",
+            "default": true
+          },
+          "proof_claims": {
+            "items": {
+              "$ref": "#/components/schemas/ProofClaim"
+            },
+            "type": "array",
+            "title": "Proof Claims"
+          },
+          "buyer_raw_message": {
+            "type": "string",
+            "title": "Buyer Raw Message"
+          },
+          "firewall_injection_flagged": {
+            "type": "boolean",
+            "title": "Firewall Injection Flagged",
+            "default": false
+          },
+          "firewall_details": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Firewall Details"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ControlTowerStatus",
+            "default": "PENDING_REVIEW"
+          },
+          "audit_trail": {
+            "items": {
+              "$ref": "#/components/schemas/AuditTrailEntry"
+            },
+            "type": "array",
+            "title": "Audit Trail"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "creator_name": {
+            "type": "string",
+            "title": "Creator Name",
+            "default": "AI_DEFENSE_ENGINE"
+          },
+          "idempotency_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Idempotency Key"
+          },
+          "data_source": {
+            "type": "string",
+            "enum": [
+              "LIVE",
+              "SIMULATED"
+            ],
+            "title": "Data Source",
+            "default": "SIMULATED"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "dispute_id",
+          "transaction_id",
+          "buyer_name",
+          "buyer_email",
+          "dispute_reason",
+          "item_name",
+          "amount",
+          "sla_deadline",
+          "escalation_triggers",
+          "ai_confidence_score",
+          "ai_recommended_action",
+          "ai_rationale",
+          "drafted_defense_letter",
+          "buyer_raw_message",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ControlTowerItem"
+      },
+      "ControlTowerListResponse": {
+        "properties": {
+          "kpis": {
+            "$ref": "#/components/schemas/ControlTowerSummaryKPI"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ControlTowerItem"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "data_source": {
+            "type": "string",
+            "enum": [
+              "LIVE",
+              "SIMULATED"
+            ],
+            "title": "Data Source",
+            "default": "SIMULATED"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kpis",
+          "count",
+          "items"
+        ],
+        "title": "ControlTowerListResponse"
+      },
+      "ControlTowerRejectRequest": {
+        "properties": {
+          "resolution_strategy": {
+            "type": "string",
+            "title": "Resolution Strategy",
+            "default": "CONCEDE_AND_REFUND"
+          },
+          "reviewer_name": {
+            "type": "string",
+            "title": "Reviewer Name",
+            "default": "Merchant Admin"
+          },
+          "reviewer_notes": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Reviewer Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reviewer_notes"
+        ],
+        "title": "ControlTowerRejectRequest"
+      },
+      "ControlTowerStatus": {
+        "type": "string",
+        "enum": [
+          "PENDING_REVIEW",
+          "SUBMITTING",
+          "SUBMITTED",
+          "APPROVED_AND_SUBMITTED",
+          "EDITED_AND_SUBMITTED",
+          "CONCEDING",
+          "CONCEDED",
+          "REJECTED_CONCEDED",
+          "FAILED",
+          "AMBIGUOUS_TIMEOUT"
+        ],
+        "title": "ControlTowerStatus"
+      },
+      "ControlTowerSummaryKPI": {
+        "properties": {
+          "total_amount_at_risk": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Amount At Risk"
+          },
+          "pending_count": {
+            "type": "integer",
+            "title": "Pending Count"
+          },
+          "urgent_24h_count": {
+            "type": "integer",
+            "title": "Urgent 24H Count"
+          },
+          "fees_saved": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fees Saved"
+          },
+          "resolved_count": {
+            "type": "integer",
+            "title": "Resolved Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_amount_at_risk",
+          "pending_count",
+          "urgent_24h_count",
+          "resolved_count"
+        ],
+        "title": "ControlTowerSummaryKPI"
+      },
+      "CreateOrderRequest": {
+        "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              }
+            ],
+            "title": "Amount",
+            "description": "Amount strictly greater than 0"
+          },
+          "currency": {
+            "type": "string",
+            "maxLength": 3,
+            "minLength": 3,
+            "title": "Currency",
+            "description": "3-letter ISO currency code",
+            "default": "USD"
+          },
+          "reference_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 128
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference Id"
+          },
+          "request_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 128
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "amount"
+        ],
+        "title": "CreateOrderRequest"
+      },
+      "DashboardStats": {
+        "properties": {
+          "total_transactions": {
+            "type": "integer",
+            "title": "Total Transactions"
+          },
+          "total_revenue": {
+            "type": "number",
+            "title": "Total Revenue"
+          },
+          "total_disputes": {
+            "type": "integer",
+            "title": "Total Disputes"
+          },
+          "open_disputes": {
+            "type": "integer",
+            "title": "Open Disputes"
+          },
+          "dispute_rate": {
+            "type": "number",
+            "title": "Dispute Rate"
+          },
+          "win_rate": {
+            "type": "number",
+            "title": "Win Rate"
+          },
+          "avg_resolution_days": {
+            "type": "number",
+            "title": "Avg Resolution Days"
+          },
+          "total_at_risk": {
+            "type": "number",
+            "title": "Total At Risk"
+          },
+          "proofs_verified": {
+            "type": "integer",
+            "title": "Proofs Verified"
+          },
+          "proofs_tampered": {
+            "type": "integer",
+            "title": "Proofs Tampered"
+          },
+          "arena_simulations_run": {
+            "type": "integer",
+            "title": "Arena Simulations Run"
+          },
+          "defender_win_rate": {
+            "type": "number",
+            "title": "Defender Win Rate"
+          },
+          "runway_months": {
+            "type": "number",
+            "title": "Runway Months"
+          },
+          "monthly_revenue": {
+            "type": "number",
+            "title": "Monthly Revenue"
+          },
+          "monthly_expenses": {
+            "type": "number",
+            "title": "Monthly Expenses"
+          },
+          "recent_alerts": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Recent Alerts"
+          },
+          "data_source": {
+            "type": "string",
+            "enum": [
+              "LIVE",
+              "SIMULATED"
+            ],
+            "title": "Data Source",
+            "default": "SIMULATED"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_transactions",
+          "total_revenue",
+          "total_disputes",
+          "open_disputes",
+          "dispute_rate",
+          "win_rate",
+          "avg_resolution_days",
+          "total_at_risk",
+          "proofs_verified",
+          "proofs_tampered",
+          "arena_simulations_run",
+          "defender_win_rate",
+          "runway_months",
+          "monthly_revenue",
+          "monthly_expenses",
+          "recent_alerts"
+        ],
+        "title": "DashboardStats"
+      },
+      "Dispute": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "PayPal dispute ID"
+          },
+          "transaction_id": {
+            "type": "string",
+            "title": "Transaction Id"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/DisputeReason"
+          },
+          "status": {
+            "$ref": "#/components/schemas/DisputeStatus"
+          },
+          "amount": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency",
+            "default": "USD"
+          },
+          "buyer": {
+            "$ref": "#/components/schemas/BuyerInfo"
+          },
+          "seller": {
+            "$ref": "#/components/schemas/SellerInfo"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/EvidenceItem"
+            },
+            "type": "array",
+            "title": "Evidence",
+            "default": []
+          },
+          "timeline": {
+            "items": {
+              "$ref": "#/components/schemas/DisputeTimeline"
+            },
+            "type": "array",
+            "title": "Timeline",
+            "default": []
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/DisputeOutcome",
+            "default": "PENDING"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "respond_by": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Respond By"
+          },
+          "ai_recommendation": {
+            "type": "string",
+            "title": "Ai Recommendation",
+            "default": ""
+          },
+          "win_probability": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Win Probability",
+            "default": 0.0
+          },
+          "data_source": {
+            "type": "string",
+            "enum": [
+              "LIVE",
+              "SIMULATED"
+            ],
+            "title": "Data Source",
+            "default": "SIMULATED"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "transaction_id",
+          "reason",
+          "status",
+          "amount",
+          "buyer",
+          "seller",
+          "description",
+          "created_at",
+          "updated_at",
+          "respond_by"
+        ],
+        "title": "Dispute"
+      },
+      "DisputeOutcome": {
+        "type": "string",
+        "enum": [
+          "SELLER_WINS",
+          "BUYER_WINS",
+          "PENDING"
+        ],
+        "title": "DisputeOutcome"
+      },
+      "DisputeReason": {
+        "type": "string",
+        "enum": [
+          "ITEM_NOT_RECEIVED",
+          "UNAUTHORIZED_TRANSACTION",
+          "SIGNIFICANTLY_NOT_AS_DESCRIBED",
+          "DUPLICATE_TRANSACTION",
+          "INCORRECT_AMOUNT"
+        ],
+        "title": "DisputeReason"
+      },
+      "DisputeResponse": {
+        "properties": {
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "evidence_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Evidence Ids",
+            "default": []
+          },
+          "counter_amount": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Counter Amount"
+          }
+        },
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "title": "DisputeResponse"
+      },
+      "DisputeResponseResult": {
+        "properties": {
+          "dispute_id": {
+            "type": "string",
+            "title": "Dispute Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "ai_analysis": {
+            "type": "string",
+            "title": "Ai Analysis"
+          },
+          "recommended_action": {
+            "type": "string",
+            "title": "Recommended Action"
+          },
+          "confidence": {
+            "type": "number",
+            "title": "Confidence"
+          },
+          "response_submitted": {
+            "type": "boolean",
+            "title": "Response Submitted"
+          },
+          "data_source": {
+            "type": "string",
+            "enum": [
+              "LIVE",
+              "SIMULATED"
+            ],
+            "title": "Data Source",
+            "default": "SIMULATED"
+          }
+        },
+        "type": "object",
+        "required": [
+          "dispute_id",
+          "status",
+          "ai_analysis",
+          "recommended_action",
+          "confidence",
+          "response_submitted"
+        ],
+        "title": "DisputeResponseResult"
+      },
+      "DisputeStatus": {
+        "type": "string",
+        "enum": [
+          "OPEN",
+          "UNDER_REVIEW",
+          "WAITING_FOR_SELLER",
+          "WAITING_FOR_BUYER",
+          "RESOLVED",
+          "CLOSED"
+        ],
+        "title": "DisputeStatus"
+      },
+      "DisputeTimeline": {
+        "properties": {
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          },
+          "event": {
+            "type": "string",
+            "title": "Event"
+          },
+          "actor": {
+            "type": "string",
+            "title": "Actor"
+          },
+          "details": {
+            "type": "string",
+            "title": "Details"
+          }
+        },
+        "type": "object",
+        "required": [
+          "timestamp",
+          "event",
+          "actor",
+          "details"
+        ],
+        "title": "DisputeTimeline"
+      },
+      "DraftStatus": {
+        "type": "string",
+        "enum": [
+          "DRAFT_VALID",
+          "DRAFT_FAILED",
+          "NO_EVIDENCE",
+          "HUMAN_AUTHORED"
+        ],
+        "title": "DraftStatus"
+      },
+      "EvidenceItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "sha256_hash": {
+            "type": "string",
+            "title": "Sha256 Hash"
+          },
+          "uploaded_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Uploaded At"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "type",
+          "filename",
+          "sha256_hash",
+          "uploaded_at",
+          "description"
+        ],
+        "title": "EvidenceItem"
+      },
+      "GenerateProofRequest": {
+        "properties": {
+          "order_id": {
+            "type": "string",
+            "title": "Order Id"
+          },
+          "dispute_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dispute Id"
+          },
+          "evidence_type": {
+            "type": "string",
+            "title": "Evidence Type",
+            "default": "Delivery Confirmation & Geofence"
+          },
+          "carrier": {
+            "type": "string",
+            "title": "Carrier",
+            "default": "USPS"
+          },
+          "tracking_number": {
+            "type": "string",
+            "title": "Tracking Number",
+            "default": "9400111899223033005282"
+          },
+          "buyer_name": {
+            "type": "string",
+            "title": "Buyer Name",
+            "default": "Carlos Martinez"
+          },
+          "latitude": {
+            "type": "number",
+            "title": "Latitude",
+            "default": 30.2672
+          },
+          "longitude": {
+            "type": "number",
+            "title": "Longitude",
+            "default": -97.7431
+          },
+          "delivery_address": {
+            "type": "string",
+            "title": "Delivery Address",
+            "default": "123 Oak St, Austin, TX 78701"
+          },
+          "use_salted_commitments": {
+            "type": "boolean",
+            "title": "Use Salted Commitments",
+            "default": true
+          },
+          "use_zero_knowledge_predicates": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Use Zero Knowledge Predicates"
+          }
+        },
+        "type": "object",
+        "required": [
+          "order_id"
+        ],
+        "title": "GenerateProofRequest"
+      },
+      "GenerateProofResponse": {
+        "properties": {
+          "proof_id": {
+            "type": "string",
+            "title": "Proof Id"
+          },
+          "order_id": {
+            "type": "string",
+            "title": "Order Id"
+          },
+          "dispute_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dispute Id"
+          },
+          "merkle_root": {
+            "type": "string",
+            "title": "Merkle Root"
+          },
+          "leaf_count": {
+            "type": "integer",
+            "title": "Leaf Count"
+          },
+          "leaf_hashes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Leaf Hashes"
+          },
+          "proof_path": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Proof Path"
+          },
+          "zk_predicates_applied": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Zk Predicates Applied"
+          },
+          "salted_commitments_applied": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Salted Commitments Applied"
+          },
+          "ed25519_signature": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ed25519 Signature"
+          },
+          "signed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signed At"
+          },
+          "merchant_public_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Merchant Public Key"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ProofStatus"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "proof_record": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Proof Record"
+          },
+          "data_source": {
+            "type": "string",
+            "enum": [
+              "LIVE",
+              "SIMULATED"
+            ],
+            "title": "Data Source",
+            "default": "SIMULATED"
+          }
+        },
+        "type": "object",
+        "required": [
+          "proof_id",
+          "order_id",
+          "merkle_root",
+          "leaf_count",
+          "leaf_hashes",
+          "proof_path",
+          "status",
+          "created_at",
+          "proof_record"
+        ],
+        "title": "GenerateProofResponse"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "LiveAttackRequest": {
+        "properties": {
+          "attack_text": {
+            "type": "string",
+            "title": "Attack Text"
+          },
+          "dispute_type": {
+            "$ref": "#/components/schemas/DisputeReason",
+            "default": "ITEM_NOT_RECEIVED"
+          },
+          "order_id": {
+            "type": "string",
+            "title": "Order Id",
+            "default": "PP-7829-MNQR"
+          },
+          "attacker_strategy": {
+            "type": "string",
+            "title": "Attacker Strategy",
+            "default": "custom_adversarial"
+          }
+        },
+        "type": "object",
+        "required": [
+          "attack_text"
+        ],
+        "title": "LiveAttackRequest"
+      },
+      "LiveAttackResult": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "attack_text": {
+            "type": "string",
+            "title": "Attack Text"
+          },
+          "is_threat": {
+            "type": "boolean",
+            "title": "Is Threat"
+          },
+          "risk_score": {
+            "type": "number",
+            "title": "Risk Score"
+          },
+          "threat_category": {
+            "type": "string",
+            "title": "Threat Category"
+          },
+          "quarantined": {
+            "type": "boolean",
+            "title": "Quarantined"
+          },
+          "sanitized_text": {
+            "type": "string",
+            "title": "Sanitized Text"
+          },
+          "defender_rebuttal": {
+            "type": "string",
+            "title": "Defender Rebuttal"
+          },
+          "confidence_score": {
+            "type": "number",
+            "title": "Confidence Score"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "mitigation_action": {
+            "type": "string",
+            "title": "Mitigation Action"
+          },
+          "rule_citations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Rule Citations"
+          },
+          "evidence_matches": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Evidence Matches"
+          },
+          "processing_time_ms": {
+            "type": "number",
+            "title": "Processing Time Ms"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "data_source": {
+            "type": "string",
+            "enum": [
+              "LIVE",
+              "SIMULATED"
+            ],
+            "title": "Data Source",
+            "default": "SIMULATED"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "attack_text",
+          "is_threat",
+          "risk_score",
+          "threat_category",
+          "quarantined",
+          "sanitized_text",
+          "defender_rebuttal",
+          "confidence_score",
+          "status",
+          "mitigation_action",
+          "rule_citations",
+          "evidence_matches",
+          "processing_time_ms",
+          "created_at"
+        ],
+        "title": "LiveAttackResult"
+      },
+      "NLQueryRequest": {
+        "properties": {
+          "query": {
+            "type": "string",
+            "title": "Query"
+          }
+        },
+        "type": "object",
+        "required": [
+          "query"
+        ],
+        "title": "NLQueryRequest"
+      },
+      "NLQueryResponse": {
+        "properties": {
+          "query": {
+            "type": "string",
+            "title": "Query"
+          },
+          "interpreted_filters": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Interpreted Filters"
+          },
+          "matched_count": {
+            "type": "integer",
+            "title": "Matched Count"
+          },
+          "matching_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Matching Ids"
+          },
+          "ai_explanation": {
+            "type": "string",
+            "title": "Ai Explanation"
+          },
+          "data_source": {
+            "type": "string",
+            "enum": [
+              "LIVE",
+              "SIMULATED"
+            ],
+            "title": "Data Source",
+            "default": "SIMULATED"
+          }
+        },
+        "type": "object",
+        "required": [
+          "query",
+          "interpreted_filters",
+          "matched_count",
+          "matching_ids",
+          "ai_explanation"
+        ],
+        "title": "NLQueryResponse"
+      },
+      "ProofClaim": {
+        "properties": {
+          "claim_id": {
+            "type": "string",
+            "title": "Claim Id"
+          },
+          "statement_text": {
+            "type": "string",
+            "title": "Statement Text"
+          },
+          "source_type": {
+            "type": "string",
+            "title": "Source Type"
+          },
+          "source_record_id": {
+            "type": "string",
+            "title": "Source Record Id"
+          },
+          "sha256_hash": {
+            "type": "string",
+            "title": "Sha256 Hash"
+          },
+          "verified": {
+            "type": "boolean",
+            "title": "Verified",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "claim_id",
+          "statement_text",
+          "source_type",
+          "source_record_id",
+          "sha256_hash"
+        ],
+        "title": "ProofClaim"
+      },
+      "ProofStatus": {
+        "type": "string",
+        "enum": [
+          "VERIFIED",
+          "TAMPERED",
+          "PENDING"
+        ],
+        "title": "ProofStatus"
+      },
+      "SellerInfo": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "email": {
+            "type": "string",
+            "title": "Email"
+          },
+          "merchant_id": {
+            "type": "string",
+            "title": "Merchant Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "email",
+          "merchant_id"
+        ],
+        "title": "SellerInfo"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}

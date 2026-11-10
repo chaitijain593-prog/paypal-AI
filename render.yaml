@@ -1,0 +1,55 @@
+services:
+  # ── PaySentinel FastAPI Backend ───────────────────────────────────────────
+  - type: web
+    name: paysentinel-backend
+    runtime: python
+    region: oregon
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: APP_ENV
+        value: production
+      - key: PAYPAL_MODE
+        value: simulated
+      - key: PAYPAL_BASE_URL
+        value: https://api-m.sandbox.paypal.com
+      - key: PAYPAL_CLIENT_ID
+        sync: false
+      - key: PAYPAL_CLIENT_SECRET
+        sync: false
+      - key: PAYPAL_WEBHOOK_ID
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: AI_MODEL
+        value: gemini-2.0-flash
+      - key: HIGH_VALUE_AMOUNT_CAP
+        value: "500.00"
+      - key: API_TOKENS
+        value: "tok_senior_risk_001:SeniorRiskOfficer:SENIOR_RISK_OFFICER,tok_operator_003:Operator:OPERATOR,tok_admin_001:Admin:ADMIN"
+      - key: ALLOW_UNSIGNED_WEBHOOKS
+        value: "false"
+
+  # ── PaySentinel Next.js Frontend ──────────────────────────────────────────
+  - type: web
+    name: paysentinel-frontend
+    runtime: node
+    region: oregon
+    plan: free
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: 20.10.0
+      - key: NEXT_PUBLIC_API_URL
+        fromService:
+          type: web
+          name: paysentinel-backend
+          property: host
+

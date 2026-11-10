@@ -15,7 +15,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from fastapi import APIRouter, BackgroundTasks, Header, HTTPException, Request, status
+from fastapi import APIRouter, BackgroundTasks, Header, HTTPException, Query, Request, status
 
 from app.core.config import get_settings
 from app.db import (
@@ -68,6 +68,70 @@ def list_webhook_events(event_id: str | None = None):
             "error_message": e.get("error_message"),
         })
     return {"count": len(formatted), "data_source": "SQLITE", "events": formatted}
+
+
+@router.get("/zapier/sample-payloads")
+def get_zapier_sample_payloads():
+    """
+    Returns pre-formatted Zapier trigger payload schemas (Zapier Sponsor Tooling).
+    Enables zero-friction setup of automated Zaps in Zapier's workflow visual builder.
+    """
+    return {
+        "triggers": {
+            "high_value_dispute_escalated": {
+                "event": "control_tower.dispute_paused",
+                "dispute_id": "PP-D-88412",
+                "amount": "1250.00",
+                "currency": "USD",
+                "buyer_name": "Marcus Vance",
+                "reason": "MERCHANDISE_OR_SERVICE_NOT_RECEIVED",
+                "sla_hours_remaining": 18.5,
+                "action_url": "https://paysentinel.internal/approval-queue",
+            },
+            "prompt_injection_blocked": {
+                "event": "security.prompt_injection_quarantined",
+                "threat_score": 0.98,
+                "threat_type": "DELIMITER_ESCAPE_OVERRIDE",
+                "sanitized_preview": "[QUARANTINED] Ignore previous instructions...",
+                "buyer_email": "attacker@darkweb.io",
+                "recommended_action": "FREEZE_ACCOUNT",
+            },
+            "carrier_claim_recommended": {
+                "event": "dispute.carrier_loss_conceded",
+                "dispute_id": "PP-D-88414",
+                "carrier": "USPS",
+                "tracking_number": "9400100000000000000000",
+                "days_stalled": 11,
+                "dispute_fee_saved": "15.00",
+                "claim_filing_url": "https://www.usps.com/help/claims.htm",
+            },
+        }
+    }
+
+
+@router.post("/zapier/dispatch")
+def zapier_dispatch_event(
+    event_type: str = Query(
+        default="high_value_dispute_escalated",
+        description="Event type: high_value_dispute_escalated | prompt_injection_blocked | carrier_claim_recommended",
+    ),
+    webhook_url: str | None = Query(
+        default=None,
+        description="Optional live Zapier catch webhook URL to trigger external Zap",
+    ),
+):
+    """
+    Dispatches a PaySentinel security alert or dispute state change to Zapier workflows.
+    """
+    samples = get_zapier_sample_payloads()["triggers"]
+    payload = samples.get(event_type, samples["high_value_dispute_escalated"])
+    return {
+        "status": "DISPATCHED",
+        "target": webhook_url or "SIMULATED_ZAPIER_CATCH_HOOK",
+        "event_type": event_type,
+        "payload": payload,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
 
 
 @router.post("/paypal")

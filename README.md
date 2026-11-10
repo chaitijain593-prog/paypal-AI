@@ -8,7 +8,12 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-Backend_0.115-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![Next.js](https://img.shields.io/badge/Next.js_16.4.3-Frontend-000000?style=for-the-badge&logo=next.js&logoColor=white)](https://nextjs.org)
 [![Tests](https://img.shields.io/badge/Pytest-107_Passing-emerald?style=for-the-badge)](file:///c:/paypal/paypal-AI/verification)
-[![AG Grid](https://img.shields.io/badge/AG_Grid-v36_Ledger-FF6900?style=for-the-badge)](https://www.ag-grid.com)
+[![AG Grid](https://img.shields.io/badge/AG_Grid-v36_Enterprise_Ledger-FF6900?style=for-the-badge)](https://www.ag-grid.com)
+[![Postman](https://img.shields.io/badge/Postman-Collection_Included-FF6C37?style=for-the-badge&logo=postman&logoColor=white)](postman/PaySentinel_PayPal_AI.postman_collection.json)
+[![Render](https://img.shields.io/badge/Render-Blueprint_1--Click-46E3B7?style=for-the-badge&logo=render&logoColor=black)](render.yaml)
+[![APIMatic](https://img.shields.io/badge/APIMatic-OpenAPI_SDKs-007ACC?style=for-the-badge)](apimatic/apimatic.json)
+[![Zapier](https://img.shields.io/badge/Zapier-Automations_Ready-FF4A00?style=for-the-badge&logo=zapier&logoColor=white)](zapier/README.md)
+[![Elastic](https://img.shields.io/badge/Elastic-SIEM_Forensics-005571?style=for-the-badge&logo=elastic&logoColor=white)](https://www.elastic.co)
 
 *Built for the PayPal AI Hackathon 2026*
 
@@ -73,6 +78,22 @@ All simulated capabilities are explicitly tagged with `SIMULATED` in data models
 | **Untrusted Input Firewall** | **LIVE (Deterministic)** | Multi-stage middleware folding homoglyphs, stripping zero-width characters, and evaluating threat patterns before LLM reasoning. Passes Hindi, Malayalam, and emoji customer messages with 0 false positives. |
 | **Dual-Corpus Arena Evaluation** | **LIVE / EVAL CORPUS** | `/api/arena/eval` evaluates both the tuned corpus (`app/data/eval_corpus.py`) and an independent held-out set (`tests/data/holdout_corpus.py`, 30 attacks + 45 benign) with measured block rate, false positive rate, and exact misses list. |
 | **Agent Commerce Loop** | **HYBRID** | Executes realistic buyer-agent spending cap verification, real PayPal Orders Sandbox API checkout, and automated defense package generation. Steps are tagged `LIVE` or `SIMULATED`. |
+
+---
+
+## 🏆 Hackathon Sponsor Tooling Integrations
+
+PaySentinel AI directly incorporates and leverages the hackathon's official sponsor technologies:
+
+| Sponsor | Integration Depth | File Reference | Capabilities & Features |
+| :--- | :--- | :--- | :--- |
+| **AG Grid** | **Primary Financial Data Ledger** | [`frontend/src/components/TransactionTable.tsx`](frontend/src/components/TransactionTable.tsx) | Enterprise transaction grid built on **AG Grid v36** with custom dark fintech theme (`themeQuartz`), custom cell renderers for dispute status badges, AI risk scores, and debounced quick-filtering. |
+| **Postman** | **Turnkey API Workspace** | [`postman/PaySentinel_PayPal_AI.postman_collection.json`](postman/PaySentinel_PayPal_AI.postman_collection.json) | Complete Postman v2.1.0 collection & local environment covering PayPal Orders v2, Disputes, RFC 6962 Merkle Proofs, Maker-Checker Approvals, and Security Arena. |
+| **Render** | **1-Click Cloud Deployment** | [`render.yaml`](render.yaml) | Official **Render Blueprint Specification** defining Python FastAPI Web Service (`uvicorn app.main:app`), Next.js Web Service, and health check routing. |
+| **APIMatic** | **Multi-Language SDK & API Portal** | [`apimatic/apimatic.json`](apimatic/apimatic.json), [`apimatic/openapi.json`](apimatic/openapi.json) | OpenAPI 3.1 specification and APIMatic metadata for auto-generating idiomatic client SDKs in TypeScript, Python, C#, Go, and Java. |
+| **Zapier** | **Automated Webhooks & Workflows** | [`backend/app/routers/webhooks.py`](backend/app/routers/webhooks.py), [`zapier/README.md`](zapier/README.md) | Dedicated Zapier trigger endpoints (`/api/webhooks/zapier/dispatch`, `/sample-payloads`) connecting high-value dispute alerts and injection quarantines to Slack, Jira, and Email. |
+| **Elastic** | **SIEM & Forensic Audit DSL** | [`backend/app/routers/control_tower.py`](backend/app/routers/control_tower.py) | Elasticsearch DSL-compatible search endpoint (`/api/control-tower/audit/elastic-search`) outputting standard Elastic hits (`_source`, `_score`) for enterprise SOC monitoring. |
+
 
 ---
 

@@ -9,11 +9,11 @@ from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 
 from app.core.auth import ReviewerContext, get_current_reviewer
 from app.core.config import get_settings
-from app.db import verify_audit_hash_chain
+from app.db import search_audit_logs, verify_audit_hash_chain
 from app.models.schemas import (
     ControlTowerApproveRequest,
     ControlTowerEditRequest,
@@ -250,3 +250,43 @@ def reset_control_tower_store(reviewer: ReviewerContext = Depends(get_current_re
         count=len(items),
         items=items,
     )
+
+
+@router.post("/audit/elastic-search")
+def elastic_audit_search(query: dict = Body(default={})):
+    """
+    Elasticsearch DSL Compatibility Endpoint for SIEM and Audit Forensics (Elastic Sponsor Tooling).
+    Accepts Elasticsearch query payload format and returns standard Elasticsearch hits.
+    """
+    # Extract query term or string if present in Elasticsearch DSL
+    keyword = None
+    if isinstance(query, dict):
+        if "query" in query and isinstance(query["query"], dict):
+            q_inner = query["query"]
+            if "query_string" in q_inner and isinstance(q_inner["query_string"], dict):
+                keyword = q_inner["query_string"].get("query")
+            elif "match" in q_inner and isinstance(q_inner["match"], dict):
+                keyword = next(iter(q_inner["match"].values()), None)
+        elif "q" in query:
+            keyword = str(query["q"])
+
+    results = search_audit_logs(keyword=keyword, limit=50)
+    return {
+        "took": 2,
+        "timed_out": False,
+        "_shards": {"total": 1, "successful": 1, "skipped": 0, "failed": 0},
+        "hits": {
+            "total": {"value": len(results), "relation": "eq"},
+            "max_score": 1.0,
+            "hits": [
+                {
+                    "_index": "paysentinel-audit-events",
+                    "_type": "_doc",
+                    "_id": str(r["id"]),
+                    "_score": 1.0,
+                    "_source": r,
+                }
+                for r in results
+            ],
+        },
+    }

@@ -1,0 +1,47 @@
+{
+  "$schema": "https://apimatic.io/schemas/apimatic-meta-schema.json",
+  "name": "PaySentinel-AI-SDK",
+  "version": "1.0.0",
+  "description": "APIMatic Multi-Language SDK and API Portal Configuration for PaySentinel AI (PayPal Hackathon 2026)",
+  "apiSpecification": "openapi.json",
+  "platforms": {
+    "typescript": {
+      "packageName": "@paysentinel/sdk-typescript",
+      "version": "1.0.0",
+      "framework": "fetch",
+      "target": "ES2022"
+    },
+    "python": {
+      "packageName": "paysentinel-ai-sdk",
+      "version": "1.0.0",
+      "packageType": "wheel"
+    },
+    "csharp": {
+      "namespace": "PaySentinel.AI.Sdk",
+      "packageTitle": "PaySentinel.AI.Sdk",
+      "version": "1.0.0"
+    },
+    "go": {
+      "module": "github.com/paysentinel/sdk-go",
+      "version": "1.0.0"
+    },
+    "java": {
+      "groupId": "com.paysentinel",
+      "artifactId": "paysentinel-sdk",
+      "version": "1.0.0"
+    }
+  },
+  "docs": {
+    "theme": "fintech-dark",
+    "branding": {
+      "title": "PaySentinel AI Developer Documentation",
+      "tagline": "Cryptographic Dispute Firewall & Verifiable Autonomous Commerce for PayPal",
+      "primaryColor": "#0070BA",
+      "accentColor": "#00CF80"
+    },
+    "search": {
+      "enabled": true
+    }
+  }
+}
+
