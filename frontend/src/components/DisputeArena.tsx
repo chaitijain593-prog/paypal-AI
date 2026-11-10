@@ -156,18 +156,7 @@ export default function DisputeArena() {
   const [isAttacking, setIsAttacking] = useState(false);
   const [lastAttackResult, setLastAttackResult] = useState<ApiLiveAttackResult | null>(null);
   const [isEvaluatingCorpus, setIsEvaluatingCorpus] = useState(false);
-  const [corpusEvalResult, setCorpusEvalResult] = useState<{
-    status: string;
-    data_source: string;
-    total_adversarial: number;
-    adversarial_blocked: number;
-    block_rate_pct: number;
-    total_benign: number;
-    benign_passed: number;
-    false_positive_rate_pct: number;
-    overall_accuracy_pct: number;
-    processing_time_ms: number;
-  } | null>(null);
+  const [corpusEvalResult, setCorpusEvalResult] = useState<import('@/lib/api').ApiCorpusEvalResult | null>(null);
 
   const handleRunCorpusEval = async () => {
     if (isEvaluatingCorpus) return;
@@ -346,7 +335,7 @@ export default function DisputeArena() {
                 {corpusEvalResult && (
                   <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 uppercase tracking-wider flex items-center gap-1">
                     <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
-                    LIVE EVAL: {corpusEvalResult.block_rate_pct}% Block Rate ({corpusEvalResult.false_positive_rate_pct}% FP)
+                    LIVE EVAL: Tuned {corpusEvalResult.tuned?.block_rate_pct ?? corpusEvalResult.block_rate_pct}% | Held-Out {corpusEvalResult.heldout?.block_rate_pct ?? '—'}% Block ({corpusEvalResult.heldout?.false_positive_rate_pct ?? corpusEvalResult.false_positive_rate_pct}% FP)
                   </span>
                 )}
               </div>
@@ -377,6 +366,43 @@ export default function DisputeArena() {
             </div>
           </div>
         </div>
+
+        {/* Dual-Corpus Live Evaluation Metrics Breakdown */}
+        {corpusEvalResult && corpusEvalResult.heldout && (
+          <div className="mb-4 p-3.5 rounded-xl bg-cyan-950/30 border border-cyan-500/20 text-xs">
+            <div className="flex items-center justify-between mb-2">
+              <span className="font-semibold text-cyan-300 flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+                Live Dual-Corpus Evaluation Results (Computed in {corpusEvalResult.processing_time_ms}ms)
+              </span>
+              <span className="text-[10px] text-cyan-400/80 font-mono">
+                Source: {corpusEvalResult.data_source} | {new Date(corpusEvalResult.timestamp).toLocaleTimeString()}
+              </span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="p-2.5 rounded-lg bg-black/40 border border-white/5">
+                <div className="flex items-center justify-between text-slate-300 font-semibold mb-1">
+                  <span>Tuned Evaluation Set (eval_corpus.py)</span>
+                  <span className="text-emerald-400">{corpusEvalResult.tuned?.block_rate_pct ?? corpusEvalResult.block_rate_pct}% Block</span>
+                </div>
+                <div className="text-[11px] text-slate-400 flex justify-between">
+                  <span>Adversarial: {corpusEvalResult.tuned?.adversarial_blocked ?? corpusEvalResult.adversarial_blocked} / {corpusEvalResult.tuned?.total_adversarial ?? corpusEvalResult.total_adversarial} blocked</span>
+                  <span>FP: {corpusEvalResult.tuned?.false_positive_rate_pct ?? corpusEvalResult.false_positive_rate_pct}% ({corpusEvalResult.tuned?.false_positives?.length ?? 0} false alarms)</span>
+                </div>
+              </div>
+              <div className="p-2.5 rounded-lg bg-black/40 border border-cyan-500/20">
+                <div className="flex items-center justify-between text-slate-300 font-semibold mb-1">
+                  <span className="text-cyan-300">Held-Out Test Set (holdout_corpus.py — untuned)</span>
+                  <span className="text-cyan-400 font-bold">{corpusEvalResult.heldout.block_rate_pct}% Block</span>
+                </div>
+                <div className="text-[11px] text-slate-400 flex justify-between">
+                  <span>Adversarial: {corpusEvalResult.heldout.adversarial_blocked} / {corpusEvalResult.heldout.total_adversarial} blocked ({corpusEvalResult.heldout.adversarial_misses?.length ?? 0} misses)</span>
+                  <span>FP: {corpusEvalResult.heldout.false_positive_rate_pct}% ({corpusEvalResult.heldout.false_positives?.length ?? 0} false alarms)</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Quick Attack Vector Presets */}
         <div className="mb-4">

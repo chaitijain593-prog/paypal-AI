@@ -30,6 +30,7 @@ def evaluate_custom_attack(body: LiveAttackRequest):
     return result
 
 
+@router.get("/eval")
 @router.post("/eval")
 def run_firewall_eval():
     """Run full evaluation corpus against Untrusted Input Firewall and return live metrics."""

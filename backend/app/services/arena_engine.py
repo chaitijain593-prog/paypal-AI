@@ -340,53 +340,49 @@ def evaluate_live_attack(request: LiveAttackRequest) -> LiveAttackResult:
     )
 
 
-def run_corpus_evaluation() -> dict[str, Any]:
-    """Runs the separate evaluation corpus through the Untrusted Input Firewall."""
-    start_time = time.perf_counter()
-    from app.data.eval_corpus import ADVERSARIAL_CORPUS, BENIGN_CORPUS
-
+def _evaluate_single_corpus(
+    adversarial_items: list[dict[str, Any]],
+    benign_items: list[dict[str, Any]],
+) -> dict[str, Any]:
     adversarial_blocked = 0
     adversarial_misses = []
-    for item in ADVERSARIAL_CORPUS:
+    for item in adversarial_items:
         assessment = firewall_engine.inspect(item["text"])
         if assessment.is_threat or assessment.quarantined:
             adversarial_blocked += 1
         else:
             adversarial_misses.append({
-                "id": item["id"],
-                "type": item["type"],
+                "id": item.get("id", "UNKNOWN"),
+                "category": item.get("category", item.get("type", "UNKNOWN")),
                 "text": item["text"],
                 "risk_score": assessment.risk_score,
             })
 
-    total_adversarial = len(ADVERSARIAL_CORPUS)
+    total_adversarial = len(adversarial_items)
     block_rate_pct = round((adversarial_blocked / total_adversarial) * 100.0, 2) if total_adversarial > 0 else 100.0
 
     benign_passed = 0
     false_positives = []
-    for item in BENIGN_CORPUS:
+    for item in benign_items:
         assessment = firewall_engine.inspect(item["text"])
         if not assessment.is_threat and not assessment.quarantined:
             benign_passed += 1
         else:
             false_positives.append({
-                "id": item["id"],
+                "id": item.get("id", "UNKNOWN"),
                 "text": item["text"],
                 "threat_category": assessment.threat_category,
                 "risk_score": assessment.risk_score,
             })
 
-    total_benign = len(BENIGN_CORPUS)
+    total_benign = len(benign_items)
     false_positive_rate_pct = round((len(false_positives) / total_benign) * 100.0, 2) if total_benign > 0 else 0.0
 
     total_all = total_adversarial + total_benign
     total_correct = adversarial_blocked + benign_passed
     overall_accuracy_pct = round((total_correct / total_all) * 100.0, 2) if total_all > 0 else 100.0
-    elapsed_ms = round((time.perf_counter() - start_time) * 1000.0, 2)
 
     return {
-        "status": "LIVE",
-        "data_source": "LIVE",
         "total_adversarial": total_adversarial,
         "adversarial_blocked": adversarial_blocked,
         "adversarial_misses": adversarial_misses,
@@ -396,6 +392,39 @@ def run_corpus_evaluation() -> dict[str, Any]:
         "false_positives": false_positives,
         "false_positive_rate_pct": false_positive_rate_pct,
         "overall_accuracy_pct": overall_accuracy_pct,
+    }
+
+
+def run_corpus_evaluation() -> dict[str, Any]:
+    """Runs both tuned and held-out evaluation corpora through the Untrusted Input Firewall."""
+    start_time = time.perf_counter()
+    from app.data.eval_corpus import ADVERSARIAL_CORPUS, BENIGN_CORPUS
+
+    try:
+        from tests.data.holdout_corpus import HOLDOUT_ADVERSARIAL_CORPUS, HOLDOUT_BENIGN_CORPUS
+    except ImportError:
+        from app.data.holdout_corpus import HOLDOUT_ADVERSARIAL_CORPUS, HOLDOUT_BENIGN_CORPUS
+
+    tuned_metrics = _evaluate_single_corpus(ADVERSARIAL_CORPUS, BENIGN_CORPUS)
+    heldout_metrics = _evaluate_single_corpus(HOLDOUT_ADVERSARIAL_CORPUS, HOLDOUT_BENIGN_CORPUS)
+
+    elapsed_ms = round((time.perf_counter() - start_time) * 1000.0, 2)
+
+    return {
+        "status": "LIVE",
+        "data_source": "LIVE",
+        "tuned": tuned_metrics,
+        "heldout": heldout_metrics,
+        # Backward-compatible top-level fields matching tuned metrics
+        "total_adversarial": tuned_metrics["total_adversarial"],
+        "adversarial_blocked": tuned_metrics["adversarial_blocked"],
+        "adversarial_misses": tuned_metrics["adversarial_misses"],
+        "block_rate_pct": tuned_metrics["block_rate_pct"],
+        "total_benign": tuned_metrics["total_benign"],
+        "benign_passed": tuned_metrics["benign_passed"],
+        "false_positives": tuned_metrics["false_positives"],
+        "false_positive_rate_pct": tuned_metrics["false_positive_rate_pct"],
+        "overall_accuracy_pct": tuned_metrics["overall_accuracy_pct"],
         "processing_time_ms": elapsed_ms,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }

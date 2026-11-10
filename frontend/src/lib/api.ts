@@ -324,6 +324,34 @@ async function request<T>(endpoint: string, options?: RequestInit): Promise<T | 
   }
 }
 
+export interface ApiCorpusSubsetMetrics {
+  total_adversarial: number;
+  adversarial_blocked: number;
+  block_rate_pct: number;
+  adversarial_misses?: Array<{ id: string; category?: string; text: string; risk_score: number }>;
+  total_benign: number;
+  benign_passed: number;
+  false_positives?: Array<{ id: string; text: string; threat_category: string; risk_score: number }>;
+  false_positive_rate_pct: number;
+  overall_accuracy_pct: number;
+}
+
+export interface ApiCorpusEvalResult {
+  status: string;
+  data_source: string;
+  tuned?: ApiCorpusSubsetMetrics;
+  heldout?: ApiCorpusSubsetMetrics;
+  total_adversarial: number;
+  adversarial_blocked: number;
+  block_rate_pct: number;
+  total_benign: number;
+  benign_passed: number;
+  false_positive_rate_pct: number;
+  overall_accuracy_pct: number;
+  processing_time_ms: number;
+  timestamp: string;
+}
+
 export const api = {
   // Dashboard
   getDashboardStats: () => request<ApiDashboardStats>('/api/dashboard/stats'),
@@ -377,19 +405,7 @@ export const api = {
       body: JSON.stringify(payload),
     }),
   runFirewallEval: () =>
-    request<{
-      status: string;
-      data_source: string;
-      total_adversarial: number;
-      adversarial_blocked: number;
-      block_rate_pct: number;
-      total_benign: number;
-      benign_passed: number;
-      false_positive_rate_pct: number;
-      overall_accuracy_pct: number;
-      processing_time_ms: number;
-      timestamp: string;
-    }>('/api/arena/eval', { method: 'POST' }),
+    request<ApiCorpusEvalResult>('/api/arena/eval', { method: 'POST' }),
 
   // Cash Flow Runway
   getCashFlowRunway: () => request<ApiCashFlowRunway>('/api/cashflow/runway'),
