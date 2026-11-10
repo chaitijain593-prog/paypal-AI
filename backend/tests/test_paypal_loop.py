@@ -88,11 +88,11 @@ def test_webhook_happy_path_and_deduplication(monkeypatch):
         "resource": {"dispute_id": "PP-D-99881", "status": "UNDER_REVIEW"},
     }
 
-    # First delivery: processed
+    # First delivery: accepted in RECEIVED status and processed in background
     res = client.post("/api/webhooks/paypal", json=payload)
     assert res.status_code == 200
     data = res.json()
-    assert data["status"] == "PROCESSED"
+    assert data["status"] in ["RECEIVED", "PROCESSED"]
     assert data["event_id"] == event_id
 
     # Second delivery with exact same ID: duplicate dropped

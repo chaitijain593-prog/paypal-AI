@@ -62,7 +62,7 @@ def test_allow_unsigned_webhook_when_dev_flag_enabled(monkeypatch):
     res = client.post("/api/webhooks/paypal", json=payload)
     assert res.status_code == 200
     data = res.json()
-    assert data["status"] == "PROCESSED"
+    assert data["status"] in ("RECEIVED", "PROCESSED")
     assert data["event_id"] == event_id
 
     # Verify state in SQLite
@@ -97,7 +97,7 @@ def test_sandbox_signature_verification_success(monkeypatch):
     with patch.object(paypal_client, "verify_webhook_signature", new=AsyncMock(return_value=True)):
         res = client.post("/api/webhooks/paypal", json=payload, headers=headers)
         assert res.status_code == 200
-        assert res.json()["status"] == "PROCESSED"
+        assert res.json()["status"] in ("RECEIVED", "PROCESSED")
 
 
 def test_sandbox_signature_verification_failure(monkeypatch):
@@ -141,10 +141,10 @@ def test_replay_deduplication(monkeypatch):
         "resource": {"id": "CAP-REPLAY", "amount": {"value": "99.00"}},
     }
 
-    # First call: processed
+    # First call: accepted & processed in background
     res1 = client.post("/api/webhooks/paypal", json=payload)
     assert res1.status_code == 200
-    assert res1.json()["status"] == "PROCESSED"
+    assert res1.json()["status"] in ("RECEIVED", "PROCESSED")
 
     # Second call: duplicate dropped
     res2 = client.post("/api/webhooks/paypal", json=payload)
@@ -153,7 +153,7 @@ def test_replay_deduplication(monkeypatch):
 
 
 def test_handler_failure_then_successful_retry(monkeypatch):
-    """If handling raises an exception, row is marked FAILED; retry with same ID succeeds and becomes PROCESSED."""
+    """If background handling raises an exception, row is marked FAILED; retry with same ID succeeds and becomes PROCESSED."""
     settings = get_settings()
     monkeypatch.setattr(settings, "allow_unsigned_webhooks", True)
 
@@ -168,13 +168,13 @@ def test_handler_failure_then_successful_retry(monkeypatch):
         },
     }
 
-    # 1. First attempt fails due to simulated downstream exception
+    # 1. First attempt returns 200 RECEIVED, background task fails due to simulated exception
     with patch("app.routers.webhooks.draft_dispute_defense", side_effect=RuntimeError("Simulated drafter crash")):
         res1 = client.post("/api/webhooks/paypal", json=payload)
-        assert res1.status_code == 500
-        assert "Simulated drafter crash" in res1.json()["detail"]
+        assert res1.status_code == 200
+        assert res1.json()["status"] == "RECEIVED"
 
-    # Check DB: status is FAILED with error message
+    # Check DB: background task recorded status as FAILED with error message
     row = get_webhook_event(event_id)
     assert row is not None
     assert row["status"] == "FAILED"
@@ -183,7 +183,7 @@ def test_handler_failure_then_successful_retry(monkeypatch):
     # 2. Retry with same event_id succeeds
     res2 = client.post("/api/webhooks/paypal", json=payload)
     assert res2.status_code == 200
-    assert res2.json()["status"] == "PROCESSED"
+    assert res2.json()["status"] in ("RECEIVED", "PROCESSED")
 
     # Check DB: status is now PROCESSED
     row_updated = get_webhook_event(event_id)
@@ -230,8 +230,7 @@ def test_customer_dispute_created_pipeline(monkeypatch):
         res = client.post("/api/webhooks/paypal", json=payload)
     assert res.status_code == 200
     data = res.json()
-    assert data["status"] == "PROCESSED"
-    assert "DISPUTE_LOGGED_ROUTED_TO_CONTROL_TOWER" in data["action_taken"]
+    assert data["status"] in ("RECEIVED", "PROCESSED")
 
     # Check that Control Tower store now has this item
     _, items = control_tower_service.get_items()

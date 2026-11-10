@@ -15,7 +15,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from fastapi import APIRouter, Header, HTTPException, Request, status
+from fastapi import APIRouter, BackgroundTasks, Header, HTTPException, Request, status
 
 from app.core.config import get_settings
 from app.db import (
@@ -23,6 +23,7 @@ from app.db import (
     load_webhook_events_from_db,
     mark_webhook_event_status,
     record_webhook_event_processing,
+    record_webhook_event_received,
 )
 from app.models.schemas import (
     AIRecommendedAction,
@@ -48,9 +49,11 @@ def _sha256(content: str) -> str:
 
 
 @router.get("/events")
-def list_webhook_events():
-    """Return the webhook event log directly from SQLite."""
+def list_webhook_events(event_id: str | None = None):
+    """Return the webhook event log directly from SQLite, optionally filtered by event_id."""
     events = load_webhook_events_from_db()
+    if event_id:
+        events = [e for e in events if e.get("event_id") == event_id]
     formatted = []
     for e in events:
         formatted.append({
@@ -70,6 +73,7 @@ def list_webhook_events():
 @router.post("/paypal")
 async def receive_paypal_webhook(
     request: Request,
+    background_tasks: BackgroundTasks,
     paypal_auth_algo: str | None = Header(None, alias="PAYPAL-AUTH-ALGO"),
     paypal_cert_url: str | None = Header(None, alias="PAYPAL-CERT-URL"),
     paypal_transmission_id: str | None = Header(None, alias="PAYPAL-TRANSMISSION-ID"),
@@ -147,8 +151,8 @@ async def receive_paypal_webhook(
     is_live_sandbox = settings.paypal_mode == "sandbox" and paypal_client.has_credentials
     data_source = "LIVE" if is_live_sandbox else "SIMULATED"
 
-    # 2. Process-then-commit / Deduplication
-    can_process = record_webhook_event_processing(
+    # 2. Insert event with status RECEIVED (fail-closed if DB write fails -> 500)
+    admission = record_webhook_event_received(
         event_id=event_id,
         event_type=event_type,
         resource_type=resource_type,
@@ -156,7 +160,14 @@ async def receive_paypal_webhook(
         payload=payload,
         data_source=data_source,
     )
-    if not can_process:
+    if admission == "DUPLICATE_IN_FLIGHT":
+        logger.info("Dropping in-flight PayPal webhook event %s", event_id)
+        return {
+            "status": "DUPLICATE_IN_FLIGHT",
+            "event_id": event_id,
+            "message": "Event is currently being processed.",
+        }
+    elif admission == "DUPLICATE_DROPPED":
         logger.info("Dropping already processed PayPal webhook event %s", event_id)
         return {
             "status": "DUPLICATE_DROPPED",
@@ -164,7 +175,35 @@ async def receive_paypal_webhook(
             "message": "Event previously processed and recorded in local store.",
         }
 
-    # 3. Handle Event in Protected Transaction / Try-Catch Block
+    # 3. Dispatch processing work to background task
+    background_tasks.add_task(
+        _process_webhook_event_background,
+        event_id=event_id,
+        event_type=event_type,
+        resource=resource,
+        resource_type=resource_type,
+        summary=summary,
+        payload=payload,
+        data_source=data_source,
+    )
+
+    return {
+        "status": "RECEIVED",
+        "event_id": event_id,
+    }
+
+
+async def _process_webhook_event_background(
+    event_id: str,
+    event_type: str,
+    resource: dict[str, Any],
+    resource_type: str | None,
+    summary: str | None,
+    payload: dict[str, Any],
+    data_source: str,
+) -> None:
+    """Decoupled background worker for PayPal webhook event ingestion."""
+    mark_webhook_event_status(event_id, "PROCESSING")
     try:
         action_taken = "RECORDED"
         if event_type == "CUSTOMER.DISPUTE.CREATED":
@@ -412,17 +451,7 @@ async def receive_paypal_webhook(
 
         # Mark successful completion
         mark_webhook_event_status(event_id, "PROCESSED")
-        return {
-            "status": "PROCESSED",
-            "event_id": event_id,
-            "event_type": event_type,
-            "action_taken": action_taken,
-            "data_source": data_source,
-        }
+        logger.info("Successfully processed webhook %s (%s): %s", event_id, event_type, action_taken)
     except Exception as e:
         logger.exception("Error processing webhook %s (%s): %s", event_id, event_type, e)
         mark_webhook_event_status(event_id, "FAILED", error_message=str(e))
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Webhook handling failed: {str(e)}",
-        )

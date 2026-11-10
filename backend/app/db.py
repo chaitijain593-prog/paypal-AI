@@ -283,6 +283,69 @@ def is_duplicate_webhook(event_id: str) -> bool:
         return row["status"] == "PROCESSED"
 
 
+def record_webhook_event_received(
+    event_id: str,
+    event_type: str,
+    resource_type: str | None,
+    summary: str | None,
+    payload: dict[str, Any],
+    data_source: str = "LIVE",
+) -> str:
+    """
+    Inserts or updates a webhook event with initial status 'RECEIVED'.
+    Returns:
+      - 'ACCEPTED': new event inserted or FAILED event retried.
+      - 'DUPLICATE_IN_FLIGHT': event is currently in RECEIVED or PROCESSING.
+      - 'DUPLICATE_DROPPED': event has already completed in PROCESSED status.
+    Fails closed: raises DatabaseError / Exception on database failure so caller can return 500.
+    """
+    now = datetime.now(timezone.utc).isoformat()
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT status FROM webhook_events WHERE event_id = ?", (event_id,))
+        row = cursor.fetchone()
+        if row:
+            st = row["status"]
+            if st in ("RECEIVED", "PROCESSING"):
+                return "DUPLICATE_IN_FLIGHT"
+            elif st == "PROCESSED":
+                return "DUPLICATE_DROPPED"
+            elif st == "FAILED":
+                cursor.execute(
+                    """
+                    UPDATE webhook_events
+                    SET status = 'RECEIVED', error_message = NULL, updated_at = ?
+                    WHERE event_id = ?
+                    """,
+                    (now, event_id),
+                )
+                conn.commit()
+                return "ACCEPTED"
+            else:
+                return "DUPLICATE_DROPPED"
+        else:
+            cursor.execute(
+                """
+                INSERT INTO webhook_events (
+                    event_id, event_type, resource_type, summary, payload_json,
+                    status, data_source, created_at, updated_at, error_message
+                ) VALUES (?, ?, ?, ?, ?, 'RECEIVED', ?, ?, ?, NULL)
+                """,
+                (
+                    event_id,
+                    event_type,
+                    resource_type or "",
+                    summary or "",
+                    json.dumps(payload),
+                    data_source,
+                    now,
+                    now,
+                ),
+            )
+            conn.commit()
+            return "ACCEPTED"
+
+
 def record_webhook_event_processing(
     event_id: str,
     event_type: str,
