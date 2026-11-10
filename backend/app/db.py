@@ -662,6 +662,45 @@ def save_control_tower_item(item: ControlTowerItem) -> None:
         conn.commit()
 
 
+def update_control_tower_item_cas(
+    item_id: str,
+    new_status: str,
+    new_updated_at: datetime,
+    expected_status: str | None = None,
+    expected_updated_at: datetime | None = None,
+    idempotency_key: str | None = None,
+) -> bool:
+    """
+    Executes an atomic Compare-And-Swap (CAS) update on control_tower_items.
+    UPDATE control_tower_items SET status = :new_status, updated_at = :new_ts ...
+    WHERE id = :id AND (status = :expected_status) AND (updated_at = :expected_ts)
+    Returns True if rows_affected == 1, False if 0 (conflict).
+    """
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        set_parts = ["status = ?", "updated_at = ?"]
+        params: list[Any] = [new_status, new_updated_at.isoformat()]
+
+        if idempotency_key is not None:
+            set_parts.append("idempotency_key = ?")
+            params.append(idempotency_key)
+
+        clauses = ["id = ?"]
+        where_params = [item_id]
+
+        if expected_status is not None:
+            clauses.append("status = ?")
+            where_params.append(expected_status)
+        if expected_updated_at is not None:
+            clauses.append("updated_at = ?")
+            where_params.append(expected_updated_at.isoformat())
+
+        query = f"UPDATE control_tower_items SET {', '.join(set_parts)} WHERE {' AND '.join(clauses)}"
+        cursor.execute(query, tuple(params + where_params))
+        conn.commit()
+        return cursor.rowcount == 1
+
+
 def load_control_tower_items() -> dict[str, ControlTowerItem]:
     """Loads all Control Tower items and their hash-chained audit trails from SQLite."""
     with get_db_connection() as conn:

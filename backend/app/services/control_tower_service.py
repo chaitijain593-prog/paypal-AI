@@ -25,6 +25,7 @@ from app.db import (
     init_db,
     load_control_tower_items,
     save_control_tower_item,
+    update_control_tower_item_cas,
     verify_audit_hash_chain,
 )
 from app.models.schemas import (
@@ -48,6 +49,11 @@ class MakerCheckerError(Exception):
 
 class RoleRequirementError(Exception):
     """Raised when a non-senior reviewer attempts to approve an item exceeding the amount cap."""
+    pass
+
+
+class ConcurrentStateConflictError(ValueError):
+    """Raised when a Compare-And-Swap (CAS) update detects concurrent modification."""
     pass
 
 
@@ -478,10 +484,20 @@ class ControlTowerStore:
         now = datetime.now(timezone.utc)
         prev_state = item.status.value
 
-        # 1. Transition to SUBMITTING before PayPal call
+        # 1. Atomic Compare-And-Swap (CAS) transition to SUBMITTING before PayPal call
+        cas_ok = update_control_tower_item_cas(
+            item_id=item.id,
+            new_status=ControlTowerStatus.SUBMITTING.value,
+            new_updated_at=now,
+            expected_status=prev_state,
+            idempotency_key=item.idempotency_key,
+        )
+        if not cas_ok:
+            raise ConcurrentStateConflictError(
+                f"Concurrent state transition detected on item {item.id}. Expected state '{prev_state}'."
+            )
         item.status = ControlTowerStatus.SUBMITTING
         item.updated_at = now
-        save_control_tower_item(item)
 
         dispatch_notes = f"Dispatched defense to PayPal. IdempotencyKey={item.idempotency_key}"
         dispatch_payload_hash = _sha256(f"{item.drafted_defense_letter}|{now.isoformat()}|{reviewer_name}")
@@ -745,10 +761,20 @@ class ControlTowerStore:
             except ValueError:
                 pass
 
-        # 1. Transition to SUBMITTING before PayPal call
+        # 1. Atomic Compare-And-Swap (CAS) transition to SUBMITTING before PayPal call
+        cas_ok = update_control_tower_item_cas(
+            item_id=item.id,
+            new_status=ControlTowerStatus.SUBMITTING.value,
+            new_updated_at=now,
+            expected_status=prev_state,
+            idempotency_key=item.idempotency_key,
+        )
+        if not cas_ok:
+            raise ConcurrentStateConflictError(
+                f"Concurrent state transition detected on item {item.id}. Expected state '{prev_state}'."
+            )
         item.status = ControlTowerStatus.SUBMITTING
         item.updated_at = now
-        save_control_tower_item(item)
 
         dispatch_notes = f"Dispatched edited defense to PayPal. IdempotencyKey={item.idempotency_key}"
         dispatch_payload_hash = _sha256(f"{updated_defense_letter}|{now.isoformat()}|{reviewer_name}")
@@ -897,10 +923,20 @@ class ControlTowerStore:
         now = datetime.now(timezone.utc)
         prev_state = item.status.value
 
-        # 1. Transition to CONCEDING before PayPal call
+        # 1. Atomic Compare-And-Swap (CAS) transition to CONCEDING before PayPal call
+        cas_ok = update_control_tower_item_cas(
+            item_id=item.id,
+            new_status=ControlTowerStatus.CONCEDING.value,
+            new_updated_at=now,
+            expected_status=prev_state,
+            idempotency_key=item.idempotency_key,
+        )
+        if not cas_ok:
+            raise ConcurrentStateConflictError(
+                f"Concurrent state transition detected on item {item.id}. Expected state '{prev_state}'."
+            )
         item.status = ControlTowerStatus.CONCEDING
         item.updated_at = now
-        save_control_tower_item(item)
 
         dispatch_notes = f"Dispatched concession to PayPal. IdempotencyKey={item.idempotency_key}"
         dispatch_payload_hash = _sha256(f"CONCEDE_{resolution_strategy}|{now.isoformat()}|{reviewer_name}")
