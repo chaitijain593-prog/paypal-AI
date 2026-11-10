@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from datetime import datetime
+from decimal import Decimal
 from enum import Enum
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_serializer, model_validator
 
 
 # ── Enums ──────────────────────────────────────────────────────────────────
@@ -80,7 +81,7 @@ class SellerInfo(BaseModel):
 class Transaction(BaseModel):
     id: str = Field(..., description="PayPal transaction ID")
     order_id: str
-    amount: float
+    amount: Decimal
     currency: str = "USD"
     status: TransactionStatus
     buyer: BuyerInfo
@@ -94,6 +95,10 @@ class Transaction(BaseModel):
     type: str = "Product Sale"
     has_dispute: bool = False
     dispute_id: str | None = None
+
+    @field_serializer("amount", mode="plain", when_used="json", check_fields=False)
+    def serialize_decimal(self, v: Decimal | None) -> float | None:
+        return float(v) if v is not None else None
 
 
 # ── Dispute Models ─────────────────────────────────────────────────────────
@@ -119,7 +124,7 @@ class Dispute(BaseModel):
     transaction_id: str
     reason: DisputeReason
     status: DisputeStatus
-    amount: float
+    amount: Decimal
     currency: str = "USD"
     buyer: BuyerInfo
     seller: SellerInfo
@@ -134,11 +139,19 @@ class Dispute(BaseModel):
     win_probability: float = Field(ge=0.0, le=1.0, default=0.0)
     data_source: Literal["LIVE", "SIMULATED"] = "SIMULATED"
 
+    @field_serializer("amount", mode="plain", when_used="json", check_fields=False)
+    def serialize_decimal(self, v: Decimal | None) -> float | None:
+        return float(v) if v is not None else None
+
 
 class DisputeResponse(BaseModel):
     message: str
     evidence_ids: list[str] = []
-    counter_amount: float | None = None
+    counter_amount: Decimal | None = None
+
+    @field_serializer("counter_amount", mode="plain", when_used="json", check_fields=False)
+    def serialize_decimal(self, v: Decimal | None) -> float | None:
+        return float(v) if v is not None else None
 
 
 class DisputeResponseResult(BaseModel):
@@ -408,9 +421,9 @@ class ControlTowerItem(BaseModel):
     buyer_email: str
     dispute_reason: str
     item_name: str
-    amount: float = Field(..., gt=0.0)
+    amount: Decimal = Field(..., gt=Decimal("0.0"))
     currency: str = "USD"
-    dispute_fee_at_risk: float = 15.00
+    dispute_fee_at_risk: Decimal = Decimal("15.00")
     sla_deadline: datetime
     escalation_triggers: list[str]
     ai_confidence_score: float = Field(..., ge=0.0, le=1.0)
@@ -430,6 +443,10 @@ class ControlTowerItem(BaseModel):
     creator_name: str = "AI_DEFENSE_ENGINE"
     idempotency_key: str | None = None
     data_source: Literal["LIVE", "SIMULATED"] = "SIMULATED"
+
+    @field_serializer("amount", "dispute_fee_at_risk", mode="plain", when_used="json", check_fields=False)
+    def serialize_decimal(self, v: Decimal | None) -> float | None:
+        return float(v) if v is not None else None
 
 
 class ControlTowerApproveRequest(BaseModel):
@@ -452,11 +469,15 @@ class ControlTowerRejectRequest(BaseModel):
 
 
 class ControlTowerSummaryKPI(BaseModel):
-    total_amount_at_risk: float
+    total_amount_at_risk: Decimal
     pending_count: int
     urgent_24h_count: int
-    fees_saved: float
+    fees_saved: Decimal = Decimal("0.00")
     resolved_count: int
+
+    @field_serializer("total_amount_at_risk", "fees_saved", mode="plain", when_used="json", check_fields=False)
+    def serialize_decimal(self, v: Decimal | None) -> float | None:
+        return float(v) if v is not None else None
 
 
 class ControlTowerListResponse(BaseModel):
@@ -488,18 +509,26 @@ class AgentCommerceStep(BaseModel):
 class AgentCommerceSession(BaseModel):
     session_id: str
     product_name: str
-    amount: float
+    amount: Decimal
     currency: str = "USD"
-    buyer_spend_cap: float = 500.00
+    buyer_spend_cap: Decimal = Decimal("500.00")
     status: str = "COMPLETED"  # IN_PROGRESS | COMPLETED | ESCALATED
     dispute_id: str | None = None
     steps: list[AgentCommerceStep] = Field(default_factory=list)
     created_at: datetime
     data_source: Literal["LIVE", "SIMULATED"] = "SIMULATED"
 
+    @field_serializer("amount", "buyer_spend_cap", mode="plain", when_used="json", check_fields=False)
+    def serialize_decimal(self, v: Decimal | None) -> float | None:
+        return float(v) if v is not None else None
+
 
 class AgentCommerceRunRequest(BaseModel):
     product_name: str = "Keychron Q1 Pro Mechanical Keyboard"
-    amount: float = 249.99
+    amount: Decimal = Decimal("249.99")
     simulate_dispute: bool = True
+
+    @field_serializer("amount", mode="plain", when_used="json", check_fields=False)
+    def serialize_decimal(self, v: Decimal | None) -> float | None:
+        return float(v) if v is not None else None
     inject_adversarial: bool = False

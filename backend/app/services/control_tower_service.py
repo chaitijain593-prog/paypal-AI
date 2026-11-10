@@ -12,6 +12,7 @@ import hashlib
 import json
 import uuid
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from typing import Any
 
 import httpx
@@ -138,9 +139,9 @@ def _build_initial_seed() -> list[ControlTowerItem]:
         buyer_email="marcus.v@apextech.io",
         dispute_reason="MERCHANDISE_OR_SERVICE_NOT_RECEIVED",
         item_name="Apple Studio Display 27\" 5K Nano-Texture",
-        amount=1250.00,
+        amount=Decimal("1250.00"),
         currency="USD",
-        dispute_fee_at_risk=15.00,
+        dispute_fee_at_risk=Decimal("15.00"),
         sla_deadline=sla_1,
         escalation_triggers=[
             "HIGH_VALUE_THRESHOLD ($1,250.00 > $500.00 cap)",
@@ -225,9 +226,9 @@ def _build_initial_seed() -> list[ControlTowerItem]:
         buyer_email="d.reed.hacker@proton.me",
         dispute_reason="SIGNIFICANTLY_NOT_AS_DESCRIBED",
         item_name="Keychron Q1 Pro Custom Mechanical Keyboard",
-        amount=340.00,
+        amount=Decimal("340.00"),
         currency="USD",
-        dispute_fee_at_risk=15.00,
+        dispute_fee_at_risk=Decimal("15.00"),
         sla_deadline=sla_2,
         escalation_triggers=[
             "LOW_CONFIDENCE_SCORE (0.62 < 0.80 cutoff)",
@@ -303,9 +304,9 @@ def _build_initial_seed() -> list[ControlTowerItem]:
         buyer_email="claire.d@montreal.ca",
         dispute_reason="MERCHANDISE_OR_SERVICE_NOT_RECEIVED",
         item_name="Sony WF-1000XM5 Wireless Noise-Canceling Earbuds",
-        amount=185.00,
+        amount=Decimal("185.00"),
         currency="USD",
-        dispute_fee_at_risk=15.00,
+        dispute_fee_at_risk=Decimal("15.00"),
         sla_deadline=sla_3,
         escalation_triggers=[
             "KNOW_WHEN_TO_FOLD_RECOMMENDATION",
@@ -385,15 +386,15 @@ class ControlTowerStore:
         pending_items = [i for i in all_list if i.status == ControlTowerStatus.PENDING_REVIEW]
         resolved_items = [i for i in all_list if i.status not in (ControlTowerStatus.PENDING_REVIEW, ControlTowerStatus.SUBMITTING, ControlTowerStatus.CONCEDING)]
 
-        total_at_risk = sum(i.amount for i in pending_items)
+        total_at_risk = sum((i.amount for i in pending_items), Decimal("0.00"))
         urgent_count = sum(1 for i in pending_items if (i.sla_deadline - now).total_seconds() < 86400)
-        fees_saved = sum(i.dispute_fee_at_risk for i in resolved_items)
+        fees_saved = sum((i.dispute_fee_at_risk for i in resolved_items), Decimal("0.00"))
 
         kpis = ControlTowerSummaryKPI(
-            total_amount_at_risk=round(total_at_risk, 2),
+            total_amount_at_risk=total_at_risk,
             pending_count=len(pending_items),
             urgent_24h_count=urgent_count,
-            fees_saved=round(fees_saved, 2),
+            fees_saved=fees_saved,
             resolved_count=len(resolved_items),
         )
 
@@ -453,7 +454,7 @@ class ControlTowerStore:
         # Role Requirement above Configured Amount Cap
         settings = get_settings()
         senior_roles = {"SENIOR_RISK_OFFICER", "RISK_LEAD", "EXECUTIVE", "ADMIN"}
-        if item.amount > settings.high_value_amount_cap and reviewer_role not in senior_roles:
+        if item.amount > Decimal(str(settings.high_value_amount_cap)) and reviewer_role not in senior_roles:
             raise RoleRequirementError(
                 f"Dispute amount (${item.amount:.2f}) exceeds policy cap (${settings.high_value_amount_cap:.2f}). "
                 f"Senior approval required ({', '.join(sorted(senior_roles))}), but reviewer has role '{reviewer_role}'."
@@ -712,7 +713,7 @@ class ControlTowerStore:
         # Role Requirement above Configured Amount Cap
         settings = get_settings()
         senior_roles = {"SENIOR_RISK_OFFICER", "RISK_LEAD", "EXECUTIVE", "ADMIN"}
-        if item.amount > settings.high_value_amount_cap and reviewer_role not in senior_roles:
+        if item.amount > Decimal(str(settings.high_value_amount_cap)) and reviewer_role not in senior_roles:
             raise RoleRequirementError(
                 f"Dispute amount (${item.amount:.2f}) exceeds policy cap (${settings.high_value_amount_cap:.2f}). "
                 f"Senior approval required ({', '.join(sorted(senior_roles))}), but reviewer has role '{reviewer_role}'."
@@ -869,7 +870,7 @@ class ControlTowerStore:
         # Role Requirement above Configured Amount Cap
         settings = get_settings()
         senior_roles = {"SENIOR_RISK_OFFICER", "RISK_LEAD", "EXECUTIVE", "ADMIN"}
-        if item.amount > settings.high_value_amount_cap and reviewer_role not in senior_roles:
+        if item.amount > Decimal(str(settings.high_value_amount_cap)) and reviewer_role not in senior_roles:
             raise RoleRequirementError(
                 f"Dispute amount (${item.amount:.2f}) exceeds policy cap (${settings.high_value_amount_cap:.2f}). "
                 f"Senior approval required ({', '.join(sorted(senior_roles))}), but reviewer has role '{reviewer_role}'."

@@ -12,8 +12,11 @@ import json
 import os
 import sqlite3
 from datetime import datetime, timezone
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
+
+sqlite3.register_adapter(Decimal, lambda d: float(d))
 
 from app.models.schemas import (
     AIRecommendedAction,
@@ -701,9 +704,9 @@ def load_control_tower_items() -> dict[str, ControlTowerItem]:
                 buyer_email=r["buyer_email"],
                 dispute_reason=r["dispute_reason"],
                 item_name=r["item_name"],
-                amount=float(r["amount"]),
+                amount=Decimal(str(r["amount"])),
                 currency=r["currency"],
-                dispute_fee_at_risk=float(r["dispute_fee_at_risk"]),
+                dispute_fee_at_risk=Decimal(str(r["dispute_fee_at_risk"])),
                 sla_deadline=datetime.fromisoformat(r["sla_deadline"]),
                 escalation_triggers=json.loads(r["escalation_triggers_json"]),
                 ai_confidence_score=float(r["ai_confidence_score"]),
@@ -787,7 +790,7 @@ def load_transactions_from_db() -> list[Transaction]:
                     Transaction(
                         id=r["id"],
                         order_id=r["order_id"],
-                        amount=float(r["amount"]),
+                        amount=Decimal(str(r["amount"])),
                         currency=r["currency"],
                         status=TransactionStatus(r["status"]),
                         buyer=BuyerInfo(**buyer_data),
@@ -870,7 +873,7 @@ def load_disputes_from_db() -> list[Dispute]:
                         transaction_id=r["transaction_id"],
                         reason=DisputeReason(r["reason"]),
                         status=DisputeStatus(r["status"]),
-                        amount=float(r["amount"]),
+                        amount=Decimal(str(r["amount"])),
                         currency=r["currency"],
                         buyer=BuyerInfo(
                             name=r["buyer_name"],
