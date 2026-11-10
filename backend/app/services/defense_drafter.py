@@ -79,12 +79,12 @@ def validate_rebuttal_and_claims(
         return False, "EMPTY_REBUTTAL: Rebuttal letter is empty or insufficient."
 
     letter_upper = rebuttal_letter.upper()
-    has_any_citation = any(eid.upper() in letter_upper for eid in valid_ids)
-    if not has_any_citation:
-        return (
-            False,
-            f"UNCITED_REBUTTAL_LETTER: Rebuttal letter contains factual assertions without citing any verified evidence leaves: {sorted(list(valid_ids))}.",
-        )
+    for c in claims:
+        if c.evidence_id.upper() not in letter_upper:
+            return (
+                False,
+                f"UNCITED_REBUTTAL_LETTER_CLAIM: Rebuttal letter does not cite claimed evidence_id '{c.evidence_id}'. All claimed leaves must be explicitly cited.",
+            )
 
     return True, None
 
@@ -101,6 +101,34 @@ def validate_defense_claims(
     )
 
 
+GEMINI_DEFENSE_SCHEMA = {
+    "type": "OBJECT",
+    "properties": {
+        "rebuttal_letter": {
+            "type": "STRING",
+            "description": "Formal dispute contest letter explicitly citing every evidence ID in the claims list (e.g., [EVD-TRK-1]).",
+        },
+        "claims": {
+            "type": "ARRAY",
+            "description": "Factual assertions derived strictly from the allowed evidence leaves.",
+            "items": {
+                "type": "OBJECT",
+                "properties": {
+                    "evidence_id": {"type": "STRING"},
+                    "statement": {"type": "STRING"},
+                },
+                "required": ["evidence_id", "statement"],
+            },
+        },
+        "recommended_action": {
+            "type": "STRING",
+            "enum": ["SUBMIT_EVIDENCE", "ACCEPT_CLAIM_AND_REFUND", "ESCALATE_MANUAL_INQUIRY"],
+        },
+    },
+    "required": ["rebuttal_letter", "claims", "recommended_action"],
+}
+
+
 async def _query_gemini_defense_draft(
     dispute_id: str,
     order_id: str,
@@ -109,7 +137,7 @@ async def _query_gemini_defense_draft(
     evidence_leaves: list[dict[str, Any]],
     previous_validation_error: str | None = None,
 ) -> dict[str, Any] | None:
-    """Prompt Gemini API using async httpx and x-goog-api-key header with error feedback."""
+    """Prompt Gemini API using async httpx and x-goog-api-key header with structured schema and error feedback."""
     if not settings.gemini_api_key:
         return None
 
@@ -143,16 +171,6 @@ BUYER FACTUAL CLAIMS:
 
 ALLOWED EVIDENCE LIST (ONLY CITE THESE IDS):
 {evidence_summary}
-
-OUTPUT ONLY VALID JSON with this exact structure:
-{{
-  "rebuttal_letter": "Dear PayPal Claims Specialist,\\n\\nWe formally contest this claim citing evidence [EVD-...]: ...",
-  "claims": [
-    {{"evidence_id": "...", "statement": "..."}}
-  ],
-  "confidence_score": 0.95,
-  "recommended_action": "SUBMIT_EVIDENCE"
-}}
 """
     try:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{settings.ai_model}:generateContent"
@@ -162,7 +180,11 @@ OUTPUT ONLY VALID JSON with this exact structure:
         }
         payload = {
             "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {"temperature": 0.2, "responseMimeType": "application/json"},
+            "generationConfig": {
+                "temperature": 0.2,
+                "responseMimeType": "application/json",
+                "responseSchema": GEMINI_DEFENSE_SCHEMA,
+            },
         }
         async with httpx.AsyncClient(timeout=10.0) as client:
             res = await client.post(url, headers=headers, json=payload)
@@ -196,6 +218,8 @@ async def draft_dispute_defense(
     # 1. Untrusted Input Firewall: Extract only factual claims
     firewall_res = firewall_engine.extract_factual_assertions(buyer_message)
     sanitized_buyer_claims = firewall_res["factual_assertions"]
+    firewall_inspection = firewall_engine.inspect(buyer_message)
+    count_quarantined = 1 if firewall_inspection.quarantined else 0
 
     # Map of permitted evidence
     valid_evidence_map = {
@@ -223,11 +247,25 @@ async def draft_dispute_defense(
             rebuttal = llm_output.get("rebuttal_letter", "")
             valid, err = validate_rebuttal_and_claims(rebuttal, claims, valid_evidence_map)
             if valid:
+                from app.services.proof_engine import MerkleTree
+                verified_count = 0
+                for c in claims:
+                    leaf_obj = valid_evidence_map.get(c.evidence_id)
+                    if leaf_obj and isinstance(leaf_obj, dict) and "proof_path" in leaf_obj and "root" in leaf_obj:
+                        raw_bytes = leaf_obj.get("raw_bytes") or leaf_obj.get("description", "").encode("utf-8")
+                        if MerkleTree.verify_proof(raw_bytes, leaf_obj["proof_path"], leaf_obj["root"]):
+                            verified_count += 1
+                    elif leaf_obj:
+                        verified_count += 1
+
+                det_confidence = (verified_count / len(claims)) * (1.0 - 0.2 * count_quarantined) if claims else 0.0
+                det_confidence = max(0.0, min(1.0, round(det_confidence, 4)))
+
                 return DefenseDraftResult(
                     dispute_id=dispute_id,
                     rebuttal_letter=rebuttal,
                     claims=claims,
-                    confidence_score=float(llm_output.get("confidence_score", 0.95)),
+                    confidence_score=det_confidence,
                     recommended_action=llm_output.get("recommended_action", "SUBMIT_EVIDENCE"),
                     escalated_to_control_tower=False,
                     validation_passed=True,
