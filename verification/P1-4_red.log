@@ -1,0 +1,20 @@
+============================= test session starts =============================
+platform win32 -- Python 3.12.10, pytest-9.2.0, pluggy-1.7.0
+rootdir: C:\paypal\paypal-AI\backend
+configfile: pytest.ini
+plugins: anyio-4.16.0
+collected 3 items
+
+backend\tests\test_p1_4_timeout.py FFF                                   [100%]
+
+================================== FAILURES ===================================
+__________ test_submit_timeout_reconciles_to_approved_and_submitted ___________
+AssertionError: assert 'FAILED' in ('APPROVED_AND_SUBMITTED', 'SUBMITTED')
+
+_____ test_submit_timeout_waiting_for_evidence_becomes_ambiguous_timeout ______
+AssertionError: assert 'FAILED' == 'AMBIGUOUS_TIMEOUT'
+
+______________ test_manual_refresh_reconciles_ambiguous_timeout _______________
+AssertionError: assert 'FAILED' == 'AMBIGUOUS_TIMEOUT'
+
+======================== 3 failed, 1 warning in 1.36s =========================

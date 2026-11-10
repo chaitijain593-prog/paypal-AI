@@ -201,6 +201,35 @@ async def reject_control_tower_item(
         )
 
 
+@router.post("/{item_id}/reconcile", response_model=ControlTowerItem)
+@router.post("/{item_id}/refresh", response_model=ControlTowerItem)
+async def reconcile_control_tower_item(
+    item_id: str,
+    reviewer: ReviewerContext = Depends(get_current_reviewer),
+):
+    """
+    Manually query PayPal Disputes API to reconcile an item in AMBIGUOUS_TIMEOUT or SUBMITTING.
+    If PayPal reports dispute is UNDER_REVIEW, item transitions to APPROVED_AND_SUBMITTED.
+    """
+    try:
+        updated = await control_tower_service.reconcile_item(
+            item_id=item_id,
+            reviewer_name=reviewer.identity,
+            reviewer_role=reviewer.role,
+        )
+        return updated
+    except KeyError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Control Tower item '{item_id}' not found.",
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(e),
+        )
+
+
 @router.post("/reset", response_model=ControlTowerListResponse)
 def reset_control_tower_store(reviewer: ReviewerContext = Depends(get_current_reviewer)):
     """

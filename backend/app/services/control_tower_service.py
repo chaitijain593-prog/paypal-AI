@@ -14,6 +14,8 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+import httpx
+
 from app.core.config import get_settings
 from app.db import (
     append_audit_log_entry,
@@ -514,6 +516,9 @@ class ControlTowerStore:
         response_json = None
         is_success = False
         error_detail = None
+        is_timeout = False
+        reconciled_status: ControlTowerStatus | None = None
+        reconciled_notes: str | None = None
 
         try:
             if isinstance(provider, SandboxDisputeProvider):
@@ -524,6 +529,9 @@ class ControlTowerStore:
                 if res.get("status") == "SUCCESS" and 200 <= http_status < 300:
                     is_success = True
                     paypal_api_status = f"PAYPAL_SANDBOX_SUBMITTED (HTTP {http_status})"
+                elif res.get("is_timeout") or res.get("status") == "TIMEOUT":
+                    is_timeout = True
+                    error_detail = str(res.get("error") or "Timeout communicating with PayPal")
                 else:
                     is_success = False
                     paypal_api_status = f"PAYPAL_SANDBOX_ERROR ({res.get('http_status', 'FAIL')})"
@@ -534,16 +542,61 @@ class ControlTowerStore:
                 response_json = json.dumps(res.get("response") or {})
                 is_success = True
                 paypal_api_status = "SIMULATED_NOT_SENT"
-        except Exception as exc:
-            is_success = False
-            paypal_api_status = f"PAYPAL_API_EXCEPTION ({type(exc).__name__})"
+        except (httpx.TimeoutException, httpx.NetworkError, TimeoutError) as exc:
+            is_timeout = True
             error_detail = str(exc)
+        except Exception as exc:
+            if "timeout" in str(exc).lower():
+                is_timeout = True
+                error_detail = str(exc)
+            else:
+                is_success = False
+                paypal_api_status = f"PAYPAL_API_EXCEPTION ({type(exc).__name__})"
+                error_detail = str(exc)
+
+        # Ambiguous timeout reconciliation
+        if is_timeout:
+            try:
+                dispute = await provider.get_dispute(item.dispute_id)
+                if dispute:
+                    d_status = str(dispute.get("status") or "").upper()
+                    evidences = dispute.get("evidences") or dispute.get("evidence") or []
+                    if d_status == "UNDER_REVIEW" and len(evidences) > 0:
+                        is_success = True
+                        reconciled_status = ControlTowerStatus.APPROVED_AND_SUBMITTED
+                        action_name = "APPROVE_AND_SUBMIT"
+                        reconciled_notes = reviewer_notes or f"Reconciled defense submission after timeout: dispute {item.dispute_id} is UNDER_REVIEW with evidence registered."
+                        paypal_api_status = "PAYPAL_RECONCILED_UNDER_REVIEW"
+                    elif d_status in ("WAITING_FOR_PRV_EVIDENCE", "WAITING_FOR_SELLER_RESPONSE") or (d_status != "UNDER_REVIEW"):
+                        reconciled_status = ControlTowerStatus.AMBIGUOUS_TIMEOUT
+                        action_name = "AMBIGUOUS_TIMEOUT"
+                        reconciled_notes = f"Submission timed out and dispute is {d_status}. Marked AMBIGUOUS_TIMEOUT for manual refresh."
+                        paypal_api_status = "AMBIGUOUS_TIMEOUT"
+                    else:
+                        is_success = True
+                        reconciled_status = ControlTowerStatus.APPROVED_AND_SUBMITTED
+                        action_name = "APPROVE_AND_SUBMIT"
+                        reconciled_notes = reviewer_notes or f"Reconciled defense submission after timeout: dispute is UNDER_REVIEW."
+                        paypal_api_status = "PAYPAL_RECONCILED_UNDER_REVIEW"
+                else:
+                    reconciled_status = ControlTowerStatus.AMBIGUOUS_TIMEOUT
+                    action_name = "AMBIGUOUS_TIMEOUT"
+                    reconciled_notes = f"Submission timed out and dispute query returned empty. Marked AMBIGUOUS_TIMEOUT."
+                    paypal_api_status = "AMBIGUOUS_TIMEOUT"
+            except Exception as rec_exc:
+                reconciled_status = ControlTowerStatus.AMBIGUOUS_TIMEOUT
+                action_name = "AMBIGUOUS_TIMEOUT"
+                reconciled_notes = f"Submission timed out and dispute query failed: {rec_exc}. Marked AMBIGUOUS_TIMEOUT."
+                paypal_api_status = "AMBIGUOUS_TIMEOUT"
 
         # 3. Transition to SUBMITTED on real 2xx, or FAILED on error
         final_time = datetime.now(timezone.utc)
         submitting_state = item.status.value
 
-        if is_success:
+        if reconciled_status:
+            item.status = reconciled_status
+            final_notes = reconciled_notes or "Reconciled after ambiguous timeout."
+        elif is_success:
             item.status = ControlTowerStatus.SUBMITTED
             action_name = "APPROVE_AND_SUBMIT"
             final_notes = reviewer_notes or "Approved drafted defense for submission to PayPal Sandbox."
@@ -941,6 +994,78 @@ class ControlTowerStore:
             paypal_response_json=response_json,
         )
         item.audit_trail.append(entry)
+        return item
+
+    async def reconcile_item(
+        self,
+        item_id: str,
+        reviewer_name: str = "Merchant Admin",
+        reviewer_role: str = "SENIOR_RISK_OFFICER",
+    ) -> ControlTowerItem:
+        """
+        Manually reconcile an item in AMBIGUOUS_TIMEOUT or FAILED status against PayPal Disputes API.
+        If dispute is UNDER_REVIEW with evidence present, transitions to APPROVED_AND_SUBMITTED.
+        If still WAITING_FOR_PRV_EVIDENCE, remains in AMBIGUOUS_TIMEOUT.
+        """
+        item = self._items.get(item_id)
+        if not item:
+            raise KeyError(f"Control Tower item {item_id} not found.")
+
+        provider = get_dispute_provider()
+        dispute = await provider.get_dispute(item.dispute_id)
+        if not dispute:
+            raise ValueError(f"Unable to fetch dispute {item.dispute_id} for reconciliation.")
+
+        now = datetime.now(timezone.utc)
+        prev_state = item.status.value
+        d_status = str(dispute.get("status") or "").upper()
+        evidences = dispute.get("evidences") or dispute.get("evidence") or []
+
+        if d_status == "UNDER_REVIEW" or (len(evidences) > 0 and d_status not in ("WAITING_FOR_PRV_EVIDENCE", "WAITING_FOR_SELLER_RESPONSE")):
+            item.status = ControlTowerStatus.APPROVED_AND_SUBMITTED
+            action_name = "RECONCILE_SUCCESS"
+            reconcile_notes = f"Dispute {item.dispute_id} reconciled from PayPal: status={d_status}, evidences={len(evidences)}."
+            paypal_api_status = "PAYPAL_RECONCILED_UNDER_REVIEW"
+        elif d_status in ("WAITING_FOR_PRV_EVIDENCE", "WAITING_FOR_SELLER_RESPONSE"):
+            item.status = ControlTowerStatus.AMBIGUOUS_TIMEOUT
+            action_name = "RECONCILE_PENDING"
+            reconcile_notes = f"Dispute {item.dispute_id} is still {d_status}. Evidence not yet recorded by PayPal."
+            paypal_api_status = "AMBIGUOUS_TIMEOUT"
+        else:
+            item.status = ControlTowerStatus.FAILED
+            action_name = "RECONCILE_FAILED"
+            reconcile_notes = f"Dispute {item.dispute_id} state '{d_status}' does not indicate evidence acceptance."
+            paypal_api_status = f"PAYPAL_STATUS_{d_status}"
+
+        item.updated_at = now
+        save_control_tower_item(item)
+
+        payload_hash = _sha256(f"RECONCILE|{item.id}|{now.isoformat()}|{d_status}")
+        prev_hash, entry_hash = append_audit_log_entry(
+            item_id=item.id,
+            actor=reviewer_name,
+            action=action_name,
+            previous_state=prev_state,
+            new_state=item.status.value,
+            reviewer_notes=reconcile_notes,
+            payload_hash=payload_hash,
+            paypal_api_status=paypal_api_status,
+            timestamp=now,
+        )
+        item.audit_trail.append(
+            AuditTrailEntry(
+                timestamp=now,
+                actor=reviewer_name,
+                action=action_name,
+                previous_state=prev_state,
+                new_state=item.status.value,
+                reviewer_notes=reconcile_notes,
+                payload_hash=payload_hash,
+                paypal_api_status=paypal_api_status,
+                prev_hash=prev_hash,
+                entry_hash=entry_hash,
+            )
+        )
         return item
 
 

@@ -367,6 +367,7 @@ class ControlTowerStatus(str, Enum):
     CONCEDED = "CONCEDED"
     REJECTED_CONCEDED = "REJECTED_CONCEDED"
     FAILED = "FAILED"
+    AMBIGUOUS_TIMEOUT = "AMBIGUOUS_TIMEOUT"
 
 
 class AIRecommendedAction(str, Enum):
