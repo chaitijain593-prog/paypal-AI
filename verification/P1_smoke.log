@@ -1,0 +1,32 @@
+==> 1. Starting Backend uvicorn on port 8011...
+  [PASS] Backend /api/health returns 200
+  [PASS] Backend /docs returns 200
+==> 2. Running Auth Probes...
+  [PASS] No token returns 401
+  [PASS] Forged token returns 401
+  [PASS] OPERATOR approving high value dispute returns 403
+==> 3. Running Webhook Probes...
+  [PASS] Unsigned webhook rejected 400
+  [PASS] Invalid signature rejected 400
+==> 4. Running Proofs Engine & Tamper Probes...
+  [PASS] GET /api/proofs returns 200
+  [PASS] GET /api/proofs/PRF-001/verify returns 200
+  [PASS] Initial proof status is VERIFIED
+  [PASS] POST /api/proofs/tamper returns 200
+  [PASS] Tampered proof status returns TAMPERED
+  [PASS] Tampered proof match is False
+==> 5. Starting Frontend next start on port 3011...
+  [PASS] Frontend server booted and listening
+  [PASS] Frontend route / returns 200
+  [PASS] Frontend route /dashboard returns 200
+  [PASS] Frontend route /approval-queue returns 200
+  [PASS] Frontend route /proofs returns 200
+  [PASS] Frontend route /arena returns 200
+  [PASS] Frontend route /cashflow returns 200
+  [PASS] Frontend route /transactions returns 200
+  [PASS] Frontend route /agent-commerce returns 200
+==> 6. Cleaning up server processes...
+  Backend terminated.
+  Frontend terminated.
+
+Smoke Test Summary: 22 passed, 0 failed.
