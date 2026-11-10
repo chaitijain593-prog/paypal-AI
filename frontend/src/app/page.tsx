@@ -43,7 +43,7 @@ import {
 
 } from 'lucide-react';
 
-import CSSPhoneHero from '@/components/CSSPhoneHero';
+import StaticHero from '@/components/StaticHero';
 
 export default function StartingPage() {
   const router = useRouter();
@@ -376,7 +376,7 @@ export default function StartingPage() {
 
             <div className="lg:col-span-6 flex justify-center">
 
-              <CSSPhoneHero />
+              <StaticHero />
 
             </div>
 
@@ -562,9 +562,9 @@ export default function StartingPage() {
 
                 >
 
-                  {/* Unified Hero Phone Display */}
+                  {/* Unified Static Hero Display */}
                   <div className="w-full h-full relative flex items-center justify-center">
-                    <CSSPhoneHero presetAngle="isometric" />
+                    <StaticHero />
                   </div>
                 </motion.div>
 
