@@ -170,6 +170,55 @@ def run_smoke():
             check("Tampered proof status returns TAMPERED", v2_data.get("status") == "TAMPERED", f"Got {v2_data.get('status')}")
             check("Tampered proof match is False", v2_data.get("match") is False)
 
+        # ── 4b. Arena Dual-Corpus Evaluation Probe ────────────────────────────
+        print("==> 4b. Running Arena Dual-Corpus Eval Probe...")
+        r_arena = httpx.get(f"{BACKEND_URL}/api/arena/eval", timeout=10.0)
+        check("GET /api/arena/eval returns 200", r_arena.status_code == 200, f"Got {r_arena.status_code}")
+        arena_data = r_arena.json()
+        check("Arena eval reports tuned corpus", "tuned" in arena_data)
+        check("Arena eval reports heldout corpus", "heldout" in arena_data)
+        check("Arena heldout has >=25 attacks", arena_data.get("heldout", {}).get("total_adversarial", 0) >= 25)
+
+        # ── 4c. Draft-Failed Guard Probe ──────────────────────────────────────
+        print("==> 4c. Running Draft-Failed Guard Probe...")
+        from decimal import Decimal
+        from app.models.schemas import ControlTowerItem
+        from app.db import save_control_tower_item
+        test_failed_id = f"CT-FAIL-{uuid.uuid4().hex[:6]}"
+        test_failed_item = ControlTowerItem(
+            id=test_failed_id,
+            dispute_id=f"PP-D-{uuid.uuid4().hex[:6]}",
+            transaction_id="TX-TEST-FAIL",
+            buyer_name="Test Buyer",
+            buyer_email="buyer@test.com",
+            dispute_reason="MERCHANDISE_OR_SERVICE_NOT_RECEIVED",
+            item_name="Test Item",
+            amount=Decimal("100.00"),
+            currency="USD",
+            dispute_fee_at_risk=Decimal("15.00"),
+            sla_deadline="2026-11-20T00:00:00Z",
+            escalation_triggers=["AI_CONFIDENCE_BELOW_THRESHOLD"],
+            ai_confidence_score=0.1,
+            ai_recommended_action="ESCALATE_MANUAL_INQUIRY",
+            ai_rationale="Failed draft generation",
+            drafted_defense_letter="",
+            draft_status="DRAFT_FAILED",
+            proof_claims=[],
+            buyer_raw_message="Package not received",
+            firewall_injection_flagged=False,
+            status="PENDING_REVIEW",
+            audit_trail=[],
+            created_at="2026-11-09T00:00:00Z",
+            updated_at="2026-11-09T00:00:00Z",
+        )
+        save_control_tower_item(test_failed_item)
+        r_approve_failed = httpx.post(
+            f"{BACKEND_URL}/api/control-tower/{test_failed_id}/approve",
+            headers={"Authorization": f"Bearer {senior_tok}"},
+            json={"reviewer_notes": "Trying to approve failed draft"},
+        )
+        check("Approving DRAFT_FAILED item rejected (409/422)", r_approve_failed.status_code in (409, 422), f"Got {r_approve_failed.status_code}")
+
         # ── 5. Frontend Boot & Route Verification ─────────────────────────────
         print(f"==> 5. Starting Frontend next start on port {FRONTEND_PORT}...")
         fe_env = os.environ.copy()

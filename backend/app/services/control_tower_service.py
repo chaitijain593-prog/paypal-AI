@@ -421,7 +421,14 @@ class ControlTowerStore:
         return kpis, filtered
 
     def get_item(self, item_id: str) -> ControlTowerItem | None:
-        return self._items.get(item_id)
+        if item_id in self._items:
+            return self._items[item_id]
+        from app.db import load_control_tower_items
+        db_items = load_control_tower_items()
+        if item_id in db_items:
+            self._items[item_id] = db_items[item_id]
+            return self._items[item_id]
+        return None
 
     def create_item(self, item: ControlTowerItem) -> ControlTowerItem:
         """Adds a newly ingested dispute to the Control Tower in-memory store and SQLite."""
@@ -449,7 +456,7 @@ class ControlTowerStore:
         reviewer_role: str = "SENIOR_RISK_OFFICER",
         reviewer_notes: str | None = None,
     ) -> ControlTowerItem:
-        item = self._items.get(item_id)
+        item = self.get_item(item_id)
         if not item:
             raise KeyError(f"Control Tower item {item_id} not found.")
 
@@ -673,7 +680,7 @@ class ControlTowerStore:
         reviewer_role: str = "SENIOR_RISK_OFFICER",
         submit: bool = True,
     ) -> ControlTowerItem:
-        item = self._items.get(item_id)
+        item = self.get_item(item_id)
         if not item:
             raise KeyError(f"Control Tower item {item_id} not found.")
 
@@ -897,7 +904,7 @@ class ControlTowerStore:
         reviewer_notes: str,
         reviewer_role: str = "SENIOR_RISK_OFFICER",
     ) -> ControlTowerItem:
-        item = self._items.get(item_id)
+        item = self.get_item(item_id)
         if not item:
             raise KeyError(f"Control Tower item {item_id} not found.")
 
@@ -1062,7 +1069,7 @@ class ControlTowerStore:
         If dispute is UNDER_REVIEW with evidence present, transitions to APPROVED_AND_SUBMITTED.
         If still WAITING_FOR_PRV_EVIDENCE, remains in AMBIGUOUS_TIMEOUT.
         """
-        item = self._items.get(item_id)
+        item = self.get_item(item_id)
         if not item:
             raise KeyError(f"Control Tower item {item_id} not found.")
 
