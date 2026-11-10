@@ -467,6 +467,10 @@ export const api = {
     request<ApiControlTowerListResponse>('/api/control-tower/reset', {
       method: 'POST',
     }),
+  verifyAuditChain: (id: string) =>
+    request<{ item_id: string; verified: boolean; details: string }>(
+      '/api/control-tower/' + id + '/verify-audit-chain'
+    ),
 
   // Agent-vs-Agent Autonomous Commerce Loop (Feature 9)
   getAgentCommerceStatus: () =>

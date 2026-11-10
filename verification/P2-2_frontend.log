@@ -1,0 +1,18 @@
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+├ ○ /agent-commerce
+├ ƒ /api/proxy/[...path]
+├ ○ /approval-queue
+├ ○ /arena
+├ ○ /cashflow
+├ ○ /dashboard
+├ ○ /proofs
+├ ○ /showcase
+└ ○ /transactions
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+lint: 0 errors, 99 warnings
+build: exit 0

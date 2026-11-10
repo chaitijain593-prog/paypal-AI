@@ -55,6 +55,34 @@ export default function ApprovalQueuePage() {
   } | null>(null);
   const [copiedHash, setCopiedHash] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState<number | null>(null);
+  const [verifyingChain, setVerifyingChain] = useState<boolean>(false);
+  const [chainVerificationResult, setChainVerificationResult] = useState<{
+    itemId: string;
+    verified: boolean;
+    details: string;
+  } | null>(null);
+
+  const handleVerifyChain = async (itemId: string) => {
+    setVerifyingChain(true);
+    try {
+      const res = await api.verifyAuditChain(itemId);
+      if (res) {
+        setChainVerificationResult({
+          itemId: res.item_id,
+          verified: res.verified,
+          details: res.details,
+        });
+      }
+    } catch (err: any) {
+      setChainVerificationResult({
+        itemId,
+        verified: false,
+        details: err?.message || 'Verification request failed.',
+      });
+    } finally {
+      setVerifyingChain(false);
+    }
+  };
 
   useEffect(() => {
     setCurrentTime(Date.now());
@@ -881,13 +909,51 @@ export default function ApprovalQueuePage() {
 
               {/* SECTION D: Immutable Audit Trail Timeline */}
               <div className="space-y-3 pt-2">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
                     <Activity className="w-3.5 h-3.5 text-[#3B9EFF]" />
                     Immutable Audit Trail &amp; Cryptographic Proof Log
                   </h4>
-                  <span className="text-[10px] text-slate-400">SHA-256 Hashed</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleVerifyChain(selectedItem.id)}
+                      disabled={verifyingChain}
+                      className="px-2.5 py-1 rounded-lg text-xs font-bold bg-[#0070BA]/20 hover:bg-[#0070BA]/35 text-[#3B9EFF] border border-[#0070BA]/40 transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                      title="Verify SHA-256 cryptographic hash chain integrity from genesis"
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5 text-[#3B9EFF]" />
+                      {verifyingChain ? 'Verifying Chain...' : 'Verify Audit Chain'}
+                    </button>
+                    <span className="text-[10px] text-slate-400 font-mono">SHA-256 Hashed</span>
+                  </div>
                 </div>
+
+                {/* Audit Chain Verification Banner */}
+                {chainVerificationResult && chainVerificationResult.itemId === selectedItem.id && (
+                  <div
+                    className={`p-3 rounded-xl border flex items-start gap-2.5 text-xs ${
+                      chainVerificationResult.verified
+                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                        : 'bg-red-500/10 border-red-500/30 text-red-300'
+                    }`}
+                  >
+                    {chainVerificationResult.verified ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    ) : (
+                      <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                    )}
+                    <div>
+                      <p className="font-bold">
+                        {chainVerificationResult.verified
+                          ? '✓ Cryptographic Audit Chain Verified: Intact'
+                          : '⚠️ Cryptographic Tamper Alert: Hash Chain Broken'}
+                      </p>
+                      <p className="text-[11px] opacity-90 mt-0.5 font-mono">
+                        {chainVerificationResult.details}
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 <div className="space-y-2 border-l-2 border-white/[0.1] pl-4 ml-1">
                   {selectedItem.audit_trail.map((entry, idx) => (
