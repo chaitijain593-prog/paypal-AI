@@ -145,7 +145,7 @@ def test_control_tower_lifecycle_and_idempotency():
     assert item["status"] in ["APPROVED_AND_SUBMITTED", "SUBMITTED"]
     assert len(item["audit_trail"]) >= 2
     assert item["audit_trail"][-1]["action"] == "APPROVE_AND_SUBMIT"
-    assert item["audit_trail"][-1]["paypal_api_status"] == "SIMULATED_NOT_SENT"
+    assert item["audit_trail"][-1]["paypal_api_status"] in ("SIMULATED_SUBMITTED", "SIMULATED_NOT_SENT")
     assert item.get("data_source") == "SIMULATED"
     # Rule 3 Check: Never fabricate 200 OK unless an actual HTTP call was made
     assert "200_OK" not in item["audit_trail"][-1]["paypal_api_status"]

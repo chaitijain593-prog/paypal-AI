@@ -542,7 +542,7 @@ class ControlTowerStore:
                 debug_id = res.get("debug_id")
                 response_json = json.dumps(res.get("response") or {})
                 is_success = True
-                paypal_api_status = "SIMULATED_NOT_SENT"
+                paypal_api_status = "SIMULATED_SUBMITTED"
         except (httpx.TimeoutException, httpx.NetworkError, TimeoutError) as exc:
             is_timeout = True
             error_detail = str(exc)
@@ -600,7 +600,13 @@ class ControlTowerStore:
         elif is_success:
             item.status = ControlTowerStatus.SUBMITTED
             action_name = "APPROVE_AND_SUBMIT"
-            final_notes = reviewer_notes or "Approved drafted defense for submission to PayPal Sandbox."
+            if not isinstance(provider, SandboxDisputeProvider):
+                paypal_api_status = "SIMULATED_SUBMITTED"
+                final_notes = f"[SIMULATED] {reviewer_notes or 'Defense submission recorded in offline simulated ledger.'}"
+                item.data_source = "SIMULATED"
+            else:
+                paypal_api_status = f"PAYPAL_SANDBOX_SUBMITTED (HTTP {http_status})"
+                final_notes = reviewer_notes or "Approved drafted defense for submission to PayPal Sandbox."
         else:
             item.status = ControlTowerStatus.FAILED
             action_name = "SUBMIT_FAILED"
@@ -797,7 +803,7 @@ class ControlTowerStore:
                 debug_id = res.get("debug_id")
                 response_json = json.dumps(res.get("response") or {})
                 is_success = True
-                paypal_api_status = "SIMULATED_NOT_SENT"
+                paypal_api_status = "SIMULATED_SUBMITTED"
         except Exception as exc:
             is_success = False
             paypal_api_status = f"PAYPAL_API_EXCEPTION ({type(exc).__name__})"
@@ -810,7 +816,13 @@ class ControlTowerStore:
         if is_success:
             item.status = ControlTowerStatus.EDITED_AND_SUBMITTED
             action_name = "EDIT_AND_SUBMIT"
-            final_notes = reviewer_notes
+            if not isinstance(provider, SandboxDisputeProvider):
+                paypal_api_status = "SIMULATED_SUBMITTED"
+                final_notes = f"[SIMULATED] {reviewer_notes}"
+                item.data_source = "SIMULATED"
+            else:
+                paypal_api_status = f"PAYPAL_SANDBOX_SUBMITTED (HTTP {http_status})"
+                final_notes = reviewer_notes
         else:
             item.status = ControlTowerStatus.FAILED
             action_name = "SUBMIT_FAILED"
@@ -943,7 +955,7 @@ class ControlTowerStore:
                 debug_id = res.get("debug_id")
                 response_json = json.dumps(res.get("response") or {})
                 is_success = True
-                paypal_api_status = "SIMULATED_NOT_SENT"
+                paypal_api_status = "SIMULATED_CONCEDED"
         except Exception as exc:
             is_success = False
             paypal_api_status = f"PAYPAL_API_EXCEPTION ({type(exc).__name__})"
@@ -956,7 +968,13 @@ class ControlTowerStore:
         if is_success:
             item.status = ControlTowerStatus.CONCEDED
             action_name = "REJECT_AND_CONCEDE"
-            final_notes = f"Strategy: {resolution_strategy}. Notes: {reviewer_notes}"
+            if not isinstance(provider, SandboxDisputeProvider):
+                paypal_api_status = "SIMULATED_CONCEDED"
+                final_notes = f"[SIMULATED] Strategy: {resolution_strategy}. Notes: {reviewer_notes}"
+                item.data_source = "SIMULATED"
+            else:
+                paypal_api_status = f"PAYPAL_SANDBOX_CONCEDED (HTTP {http_status})"
+                final_notes = f"Strategy: {resolution_strategy}. Notes: {reviewer_notes}"
         else:
             item.status = ControlTowerStatus.FAILED
             action_name = "CONCEDE_FAILED"

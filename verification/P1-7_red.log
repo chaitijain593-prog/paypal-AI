@@ -1,0 +1,17 @@
+============================= test session starts =============================
+platform win32 -- Python 3.12.10, pytest-9.2.0, pluggy-1.7.0
+rootdir: C:\paypal\paypal-AI\backend
+configfile: pytest.ini
+plugins: anyio-4.16.0
+collected 2 items
+
+backend\tests\test_p1_7_simulated.py FF                                  [100%]
+
+================================== FAILURES ===================================
+_______________ test_simulated_mode_approve_audit_entry_honesty _______________
+AssertionError: assert 'APPROVE_AND_SUBMIT' == 'SIMULATED_SUBMITTED'
+
+_______________ test_simulated_mode_reject_audit_entry_honesty ________________
+AssertionError: assert 'REJECT_AND_CONCEDE' == 'SIMULATED_CONCEDED'
+
+======================== 2 failed, 1 warning in 0.79s =========================
