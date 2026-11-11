@@ -120,13 +120,13 @@ class PayPalSandboxClient:
 
     async def get_access_token(self) -> str | None:
         """Fetch OAuth2 bearer token from PayPal Sandbox with single-flight locking."""
-        if not self.has_credentials:
-            return None
-
-        # Return cached token if still valid
+        # Return cached / mocked token if still valid
         now = datetime.now(timezone.utc).timestamp()
         if self._access_token and now < self._token_expires_at:
             return self._access_token
+
+        if not self.has_credentials:
+            return None
 
         async with self.token_lock:
             # Re-check under lock (double-checked locking)
@@ -468,7 +468,11 @@ class PayPalSandboxClient:
         if validate_status:
             dispute = await self.get_dispute(dispute_id)
             if not dispute:
-                return {"status": "ERROR", "message": f"Dispute {dispute_id} not found"}
+                return {
+                    "status": "ERROR",
+                    "http_status": 404,
+                    "message": f"Dispute {dispute_id} not found",
+                }
             status_val = dispute.get("status")
             if status_val != "WAITING_FOR_SELLER_RESPONSE":
                 return {

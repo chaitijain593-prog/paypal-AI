@@ -109,6 +109,7 @@ def test_webhook_invalid_signature_rejection():
     # In sandbox mode, missing or invalid signature headers must return 400
     now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     with patch("app.routers.webhooks.settings.paypal_mode", "sandbox"), \
+         patch("app.routers.webhooks.settings.paypal_webhook_id", "WH-MOCK-SANDBOX-ID"), \
          patch.object(type(SandboxDisputeProvider().client), "has_credentials", True), \
          patch.object(
              SandboxDisputeProvider().client,
