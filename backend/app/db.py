@@ -34,12 +34,20 @@ from app.models.schemas import (
     TransactionStatus,
 )
 
-DB_PATH = Path(__file__).resolve().parent.parent / "data" / "paysentinel.db"
+def get_db_path() -> Path:
+    env_path = os.environ.get("PAYSENTINEL_DB_PATH")
+    if env_path:
+        return Path(env_path)
+    return Path(__file__).resolve().parent.parent / "data" / "paysentinel.db"
+
+
+DB_PATH = get_db_path()
 
 
 def get_db_connection() -> sqlite3.Connection:
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(DB_PATH), timeout=15.0)
+    target_path = get_db_path()
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(str(target_path), timeout=15.0)
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -155,15 +163,6 @@ def init_db() -> None:
             cursor.execute("ALTER TABLE disputes ADD COLUMN payload_json TEXT")
         except Exception:
             pass
-        try:
-            cursor.execute("ALTER TABLE webhook_events ADD COLUMN error_message TEXT")
-        except Exception:
-            pass
-        try:
-            cursor.execute("ALTER TABLE webhook_events ADD COLUMN updated_at TEXT")
-        except Exception:
-            pass
-
         # 3. Webhook Events (Deduplicated by event_id)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS webhook_events (
@@ -174,9 +173,19 @@ def init_db() -> None:
                 payload_json TEXT NOT NULL,
                 status TEXT NOT NULL DEFAULT 'PROCESSED',
                 data_source TEXT NOT NULL DEFAULT 'LIVE',
-                created_at TEXT NOT NULL
+                created_at TEXT NOT NULL,
+                updated_at TEXT,
+                error_message TEXT
             )
         """)
+        try:
+            cursor.execute("ALTER TABLE webhook_events ADD COLUMN error_message TEXT")
+        except Exception:
+            pass
+        try:
+            cursor.execute("ALTER TABLE webhook_events ADD COLUMN updated_at TEXT")
+        except Exception:
+            pass
 
         # 4. Transactions
         cursor.execute("""
