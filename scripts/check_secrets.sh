@@ -48,4 +48,12 @@ for pattern in "$P1" "$P2" "$P3" "$P4"; do
     fi
 done
 
+echo "==> Scanning deployment config for hardcoded token patterns..."
+DEPLOY_MATCHES=$(git grep -E -e "tok_[a-z]+_[0-9]+" -- "render.yaml" "Dockerfile*" "docker-compose*" || true)
+if [ -n "$DEPLOY_MATCHES" ]; then
+    echo "ERROR: Hardcoded weak token found in deployment config:"
+    echo "$DEPLOY_MATCHES"
+    exit 1
+fi
+
 echo "==> Secrets check passed cleanly: 0 tracked secrets found."

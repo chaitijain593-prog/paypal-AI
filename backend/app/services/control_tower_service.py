@@ -467,7 +467,7 @@ class ControlTowerStore:
         # Role Requirement above Configured Amount Cap
         settings = get_settings()
         senior_roles = {"SENIOR_RISK_OFFICER", "RISK_LEAD", "EXECUTIVE", "ADMIN"}
-        if item.amount > Decimal(str(settings.high_value_amount_cap)) and reviewer_role not in senior_roles:
+        if item.amount > settings.high_value_amount_cap and reviewer_role not in senior_roles:
             raise RoleRequirementError(
                 f"Dispute amount (${item.amount:.2f}) exceeds policy cap (${settings.high_value_amount_cap:.2f}). "
                 f"Senior approval required ({', '.join(sorted(senior_roles))}), but reviewer has role '{reviewer_role}'."
@@ -742,7 +742,7 @@ class ControlTowerStore:
         # Role Requirement above Configured Amount Cap
         settings = get_settings()
         senior_roles = {"SENIOR_RISK_OFFICER", "RISK_LEAD", "EXECUTIVE", "ADMIN"}
-        if item.amount > Decimal(str(settings.high_value_amount_cap)) and reviewer_role not in senior_roles:
+        if item.amount > settings.high_value_amount_cap and reviewer_role not in senior_roles:
             raise RoleRequirementError(
                 f"Dispute amount (${item.amount:.2f}) exceeds policy cap (${settings.high_value_amount_cap:.2f}). "
                 f"Senior approval required ({', '.join(sorted(senior_roles))}), but reviewer has role '{reviewer_role}'."
@@ -915,7 +915,7 @@ class ControlTowerStore:
         # Role Requirement above Configured Amount Cap
         settings = get_settings()
         senior_roles = {"SENIOR_RISK_OFFICER", "RISK_LEAD", "EXECUTIVE", "ADMIN"}
-        if item.amount > Decimal(str(settings.high_value_amount_cap)) and reviewer_role not in senior_roles:
+        if item.amount > settings.high_value_amount_cap and reviewer_role not in senior_roles:
             raise RoleRequirementError(
                 f"Dispute amount (${item.amount:.2f}) exceeds policy cap (${settings.high_value_amount_cap:.2f}). "
                 f"Senior approval required ({', '.join(sorted(senior_roles))}), but reviewer has role '{reviewer_role}'."

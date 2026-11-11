@@ -11,7 +11,7 @@ services:
     healthCheckPath: /health
     envVars:
       - key: PYTHON_VERSION
-        value: 3.11.0
+        value: 3.12.0
       - key: APP_ENV
         value: production
       - key: PAYPAL_MODE
@@ -27,11 +27,11 @@ services:
       - key: GEMINI_API_KEY
         sync: false
       - key: AI_MODEL
-        value: gemini-2.0-flash
+        value: gemini-2.5-flash
       - key: HIGH_VALUE_AMOUNT_CAP
         value: "500.00"
       - key: API_TOKENS
-        value: "tok_senior_risk_001:SeniorRiskOfficer:SENIOR_RISK_OFFICER,tok_operator_003:Operator:OPERATOR,tok_admin_001:Admin:ADMIN"
+        sync: false
       - key: ALLOW_UNSIGNED_WEBHOOKS
         value: "false"
 
@@ -52,4 +52,10 @@ services:
           type: web
           name: paysentinel-backend
           property: host
+      - key: PAYSENTINEL_API_TOKEN_OPERATOR
+        sync: false
+      - key: PAYSENTINEL_API_TOKEN_SENIOR_RISK
+        sync: false
+      - key: PAYSENTINEL_API_TOKEN_ADMIN
+        sync: false
 

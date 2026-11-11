@@ -161,7 +161,7 @@ def test_webhook_high_value_dispute_disables_autopilot(monkeypatch):
     """Dispute amount exceeding HIGH_VALUE_AMOUNT_CAP must disable auto_pilot and recommend ESCALATE."""
     settings = get_settings()
     monkeypatch.setattr(settings, "allow_unsigned_webhooks", True)
-    monkeypatch.setattr(settings, "high_value_amount_cap", 500.00)
+    monkeypatch.setattr(settings, "high_value_amount_cap", Decimal("500.00"))
 
     dispute_id = f"PP-HV-{uuid.uuid4().hex[:6]}"
     event_id = f"WH-EVT-{uuid.uuid4().hex[:8]}"

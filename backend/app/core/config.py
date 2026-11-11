@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from decimal import Decimal
 from functools import lru_cache
 
 from dotenv import load_dotenv
@@ -11,50 +12,77 @@ load_dotenv()
 
 
 class Settings:
-    """Central configuration singleton."""
+    """Central configuration instance re-evaluating environment variables at call time."""
 
-    # PayPal Sandbox
-    paypal_mode: str = os.getenv("PAYPAL_MODE", "simulated").lower()
-    paypal_client_id: str = os.getenv("PAYPAL_CLIENT_ID", "")
-    paypal_client_secret: str = os.getenv("PAYPAL_CLIENT_SECRET", "")
-    paypal_base_url: str = os.getenv(
-        "PAYPAL_BASE_URL", "https://api-m.sandbox.paypal.com"
-    )
+    paypal_mode: str
+    paypal_client_id: str
+    paypal_client_secret: str
+    paypal_base_url: str
+    gemini_api_key: str
+    ai_model: str
+    openai_api_key: str
+    app_env: str
+    app_debug: bool
+    app_port: int
+    app_host: str
+    high_value_amount_cap: Decimal
+    api_tokens: str
+    paypal_dispute_fee: Decimal
+    cors_origins: list[str]
+    paypal_webhook_id: str
+    allow_unsigned_webhooks: bool
+    signing_key_dir: str
 
-    # AI / LLM Engine
-    gemini_api_key: str = os.getenv("GEMINI_API_KEY", os.getenv("AI_API_KEY", ""))
-    ai_model: str = os.getenv("AI_MODEL", "gemini-2.5-flash")
-    openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
+    def __init__(self) -> None:
+        # PayPal Sandbox
+        self.paypal_mode = os.getenv("PAYPAL_MODE", "simulated").lower()
+        self.paypal_client_id = os.getenv("PAYPAL_CLIENT_ID", "")
+        self.paypal_client_secret = os.getenv("PAYPAL_CLIENT_SECRET", "")
+        self.paypal_base_url = os.getenv(
+            "PAYPAL_BASE_URL", "https://api-m.sandbox.paypal.com"
+        )
 
-    # App
-    app_env: str = os.getenv("APP_ENV", "development")
-    app_debug: bool = os.getenv("APP_DEBUG", "true").lower() == "true"
-    app_port: int = int(os.getenv("APP_PORT", "8000"))
-    app_host: str = os.getenv("APP_HOST", "0.0.0.0")
+        # AI / LLM Engine
+        self.gemini_api_key = os.getenv("GEMINI_API_KEY", os.getenv("AI_API_KEY", ""))
+        self.ai_model = os.getenv("AI_MODEL", "gemini-2.5-flash")
+        self.openai_api_key = os.getenv("OPENAI_API_KEY", "")
 
-    # Security & Financial Caps
-    high_value_amount_cap: float = float(os.getenv("HIGH_VALUE_AMOUNT_CAP", "500.00"))
-    api_tokens: str = os.getenv("API_TOKENS", "")
-    # Standard PayPal Dispute Fee (verify against developer.paypal.com/docs/disputes/#dispute-fees)
-    paypal_dispute_fee: float = float(os.getenv("PAYPAL_DISPUTE_FEE", "15.00"))
+        # App
+        self.app_env = os.getenv("APP_ENV", "development")
+        self.app_debug = os.getenv("APP_DEBUG", "true").lower() == "true"
+        self.app_port = int(os.getenv("APP_PORT", "8000"))
+        self.app_host = os.getenv("APP_HOST", "0.0.0.0")
 
-    # CORS
-    cors_origins: list[str] = os.getenv(
-        "CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000"
-    ).split(",")
+        # Security & Financial Caps (Parsed as Decimal for currency precision)
+        self.high_value_amount_cap = Decimal(os.getenv("HIGH_VALUE_AMOUNT_CAP", "500.00"))
+        self.api_tokens = os.getenv("API_TOKENS", "")
+        self.paypal_dispute_fee = Decimal(os.getenv("PAYPAL_DISPUTE_FEE", "15.00"))
 
-    # Webhook
-    paypal_webhook_id: str = os.getenv("PAYPAL_WEBHOOK_ID", "")
-    allow_unsigned_webhooks: bool = os.getenv("ALLOW_UNSIGNED_WEBHOOKS", "false").lower() == "true"
+        # CORS
+        self.cors_origins = [
+            orig.strip()
+            for orig in os.getenv(
+                "CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000"
+            ).split(",")
+            if orig.strip()
+        ]
+
+        # Webhook
+        self.paypal_webhook_id = os.getenv("PAYPAL_WEBHOOK_ID", "")
+        self.allow_unsigned_webhooks = (
+            os.getenv("ALLOW_UNSIGNED_WEBHOOKS", "false").lower() == "true"
+        )
+
+        # Signing Keys
+        self.signing_key_dir = os.getenv(
+            "SIGNING_KEY_DIR",
+            os.path.join(
+                os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+                "keys",
+            ),
+        )
 
 
-    # Signing Keys
-    signing_key_dir: str = os.getenv(
-        "SIGNING_KEY_DIR",
-        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "keys"),
-    )
-
-
-@lru_cache
+@lru_cache(maxsize=1)
 def get_settings() -> Settings:
     return Settings()

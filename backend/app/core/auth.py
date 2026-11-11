@@ -50,6 +50,13 @@ def _load_token_registry() -> dict[str, dict[str, str]]:
             parts = entry.strip().split(":")
             if len(parts) == 3:
                 tok, ident, role = parts[0].strip(), parts[1].strip(), parts[2].strip().upper()
+                if settings.app_env != "development":
+                    weak_prefixes = ("tok_admin_", "tok_risk_", "tok_op_", "tok_senior_", "tok_operator_")
+                    if len(tok) < 32 or any(tok.startswith(prefix) for prefix in weak_prefixes):
+                        raise RuntimeError(
+                            f"FATAL: Token '{tok[:10]}...' in API_TOKENS is too weak or uses a forbidden pattern "
+                            f"in non-development environment '{settings.app_env}'. All production tokens must be >= 32 characters."
+                        )
                 registry[tok] = {"identity": ident, "role": role}
     else:
         # If API_TOKENS is empty

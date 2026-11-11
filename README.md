@@ -132,12 +132,12 @@ PAYPAL_WEBHOOK_ID=your_paypal_webhook_id
 
 # AI Provider (Gemini Structured Outputs)
 GEMINI_API_KEY=your_gemini_api_key
-AI_MODEL=gemini-2.0-flash
+AI_MODEL=gemini-2.5-flash
 
 # Application Environment
 APP_ENV=development
 HIGH_VALUE_AMOUNT_CAP=500.00
-API_TOKENS=your_admin_token:Admin:ADMIN,your_risk_token:RiskOfficer:SENIOR_RISK_OFFICER
+API_TOKENS=<generate_32char_hex_token>:PlatformAdmin:ADMIN,<generate_32char_hex_token>:ChiefRiskOfficer:SENIOR_RISK_OFFICER,<generate_32char_hex_token>:OperatorAlex:OPERATOR
 ALLOW_UNSIGNED_WEBHOOKS=false
 CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
 SIGNING_KEY_DIR=
