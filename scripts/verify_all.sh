@@ -10,7 +10,7 @@ echo "==> [1/6] Python compileall..."
 python -m compileall -q backend/app backend/tests
 
 echo "==> [2/6] Pytest full suite..."
-pytest -q backend
+PYTHONPATH=backend pytest -q backend
 
 echo "==> [3/6] Frontend TypeScript check..."
 (cd frontend && npx tsc --noEmit)

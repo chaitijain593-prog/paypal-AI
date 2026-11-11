@@ -1,33 +1,19 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   Bot,
   Zap,
   ShieldCheck,
-  ShieldAlert,
-  ArrowRight,
-  CheckCircle2,
-  AlertTriangle,
   Play,
-  RotateCcw,
   Layers,
-  Lock,
-  DollarSign,
-  FileText,
-  Clock,
   Sparkles,
-  ExternalLink,
-  ChevronRight,
   Copy,
   Check,
   Terminal,
-  Activity,
-  CreditCard,
-  Truck,
 } from 'lucide-react';
-import { api, ApiAgentCommerceSession, ApiAgentCommerceStep } from '@/lib/api';
+import { api, ApiAgentCommerceSession } from '@/lib/api';
 import ErrorState from '@/components/ErrorState';
 import LoadingState from '@/components/LoadingState';
 import DataSourceBadge from '@/components/DataSourceBadge';

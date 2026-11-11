@@ -23,6 +23,7 @@ Automated boot verification for Backend & Frontend:
 """
 
 import os
+import signal
 import subprocess
 import sys
 import time
@@ -225,13 +226,20 @@ def run_smoke():
         fe_env["PORT"] = str(FRONTEND_PORT)
         fe_env["NEXT_PUBLIC_API_URL"] = BACKEND_URL
 
+        fe_cmd = f"npx next start -p {FRONTEND_PORT}"
+        popen_kwargs = {
+            "cwd": "frontend",
+            "env": fe_env,
+            "shell": True,
+            "stdout": subprocess.PIPE,
+            "stderr": subprocess.PIPE,
+        }
+        if sys.platform != "win32" and hasattr(os, "setsid"):
+            popen_kwargs["preexec_fn"] = os.setsid
+
         frontend_proc = subprocess.Popen(
-            ["npx", "next", "start", "-p", str(FRONTEND_PORT)],
-            cwd="frontend",
-            env=fe_env,
-            shell=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            fe_cmd,
+            **popen_kwargs,
         )
 
         fe_ready = wait_for_server(FRONTEND_URL, timeout=25.0)
@@ -255,12 +263,30 @@ def run_smoke():
     finally:
         print("==> 6. Cleaning up server processes...")
         if backend_proc:
-            backend_proc.terminate()
-            backend_proc.wait()
+            try:
+                backend_proc.terminate()
+                backend_proc.wait(timeout=5)
+            except Exception:
+                try:
+                    backend_proc.kill()
+                except Exception:
+                    pass
             print("  Backend terminated.")
         if frontend_proc:
-            # On windows shell=True kills child process tree
-            subprocess.run(["taskkill", "/F", "/T", "/PID", str(frontend_proc.pid)], capture_output=True)
+            try:
+                if sys.platform == "win32":
+                    subprocess.run(["taskkill", "/F", "/T", "/PID", str(frontend_proc.pid)], capture_output=True)
+                else:
+                    try:
+                        os.killpg(os.getpgid(frontend_proc.pid), signal.SIGTERM)
+                    except Exception:
+                        frontend_proc.terminate()
+                    try:
+                        frontend_proc.wait(timeout=5)
+                    except Exception:
+                        frontend_proc.kill()
+            except Exception as e:
+                print(f"  Frontend cleanup note: {e}")
             print("  Frontend terminated.")
 
     print(f"\nSmoke Test Summary: {passed} passed, {failed} failed.")
