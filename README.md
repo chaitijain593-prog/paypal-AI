@@ -137,8 +137,8 @@ AI_MODEL=gemini-2.0-flash
 # Application Environment
 APP_ENV=development
 HIGH_VALUE_AMOUNT_CAP=500.00
-API_TOKENS=
-ALLOW_UNSIGNED_WEBHOOKS=true
+API_TOKENS=your_admin_token:Admin:ADMIN,your_risk_token:RiskOfficer:SENIOR_RISK_OFFICER
+ALLOW_UNSIGNED_WEBHOOKS=false
 CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
 SIGNING_KEY_DIR=
 ```
